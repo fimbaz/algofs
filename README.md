@@ -11,7 +11,8 @@ Txn costs should stay reasonable.. In terms of locked funds, yeah maybe.  Hopefu
 * ~8k block read/write
 ### Want:
 * multiblock objects
-* multiobject storage
+* named multiobject storage
+* infinite scale
 
 ### Hacks:
 need the developer API to use this at all-- we dry-run execute the smart contract to read the data.
