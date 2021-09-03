@@ -1,0 +1,82 @@
+import json
+import hashlib
+import Crypto.Random
+from algosdk.wallet import Wallet
+from docopt import docopt
+from algosdk import account, encoding
+from algosdk.error import AlgodHTTPError
+from algosdk.kmd import KMDClient
+from algosdk.error import KMDHTTPError
+from algosdk.future.transaction import *
+from algosdk.v2client import algod
+from algosdk.wallet import Wallet
+from algosdk.v2client import indexer
+import os
+import json
+from docopt import docopt
+import sys
+import base64
+
+
+def wait_for_confirmation(client, txid):
+    last_round = client.status().get("last-round")
+    txinfo = client.pending_transaction_info(txid)
+    while not (txinfo.get("confirmed-round") and txinfo.get("confirmed-round") > 0):
+        print("Waiting for confirmation")
+        last_round += 1
+        client.status_after_block(last_round)
+        txinfo = client.pending_transaction_info(txid)
+    return txinfo
+
+
+def application_state(algodclient, app_id):
+    try:
+        appinfo = algodclient.application_info(app_id)
+    except AlgodHTTPError as e:
+        if json.loads(str(e))["message"] == "application does not exist":
+            return {}
+    keys = {
+        base64.b64decode(item["key"]): base64.b64decode(item["value"]["bytes"])
+        if item["value"]["type"] == 1
+        else item["value"]["uint"]
+        for item in (appinfo["params"]["global-state"] if "global-state" in appinfo["params"] else [])
+    }
+    out = {}
+    for k, v in keys.items():
+        try:
+            out[k.decode("utf-8")] = encoding.encode_address(v)
+        except TypeError:
+            out[k.decode("utf-8")] = v
+    out["approvalProgram"] = appinfo["params"]["approval-program"]
+    out["clearStateProgram"] = appinfo["params"]["clear-state-program"]
+
+    return out
+
+
+import socket
+def big_endian(integer):
+    return socket.htonl(integer)
+
+
+class Player(object):
+    def __init__(
+        self,
+        hot_account,
+        algod_url="http://127.0.0.1:4001",
+        kmd_url="http://127.0.0.1:4002",
+        indexer_url="http://127.0.0.1:8091",
+        algod_token="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        kmd_token="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        indexer_token="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        wallet_name="unencrypted-default-wallet",
+        wallet_password="",
+    ):
+
+        self.hot_account = hot_account
+        self.kmd = KMDClient(kmd_token, kmd_url)
+        self.indexer = indexer.IndexerClient(indexer_token, indexer_url)
+        self.algod = algod.AlgodClient(algod_token, algod_url)
+        self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
+        self.params = self.algod.suggested_params()
+        self.params.fee = 1000
+        self.params.flat_fee = True

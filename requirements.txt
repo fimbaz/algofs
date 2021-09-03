@@ -1,0 +1,6 @@
+pycryptodome==3.10.1
+wheel==0.36.2
+py-algorand-sdk==1.6.0
+pyteal==0.8.0
+docopt==0.6.2
+docutils==0.17.1
