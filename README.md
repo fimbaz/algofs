@@ -13,6 +13,9 @@ Txn costs should stay reasonable.. In terms of locked funds, yeah maybe.  Hopefu
 * multiblock objects
 * multiobject storage
 
+### Hacks:
+need the developer API to use this at all-- we dry-run execute the smart contract to read the data, so the dev API needs to be turned on.
+
 ### Demo:
 ```
 (.venv) fimbaz@kolombus:~/algofs$ python block.py write foon                                                                                                                                                                                                                                 
