@@ -5,6 +5,8 @@ Treat algorand like s3
 find the price of storage in this network
 ### how
 jam ~8k into a stateful application, then do filesystem things until someone gets mad.
+### wont that get expensive?
+Yeah maybe.  Hopefully the cost of algorand goes down.  Could use a private network too!
 ### Done already:
 * ~8k block read/write
 ### Want:
