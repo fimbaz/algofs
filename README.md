@@ -14,7 +14,7 @@ Txn costs should stay reasonable.. In terms of locked funds, yeah maybe.  Hopefu
 * multiobject storage
 
 ### Hacks:
-need the developer API to use this at all-- we dry-run execute the smart contract to read the data, so the dev API needs to be turned on.
+need the developer API to use this at all-- we dry-run execute the smart contract to read the data.
 
 ### Demo:
 ```
