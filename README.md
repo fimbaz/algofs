@@ -1,12 +1,12 @@
-##AlgoFS
-###Wut
+## AlgoFS
+### Wut
 Treat algorand like s3
-###Y
+### Y
 find the price of storage in this network
-###how
-jam ~8k into a stateful application
-###Done already:
+### how
+jam ~8k into a stateful application, then do filesystem things until someone gets mad.
+### Done already:
 * ~8k block read/write
-###Want:
+### Want:
 * multiblock objects
 * multiobject storage
