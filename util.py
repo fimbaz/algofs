@@ -1,3 +1,6 @@
+import gevent
+from gevent import monkey
+monkey.patch_all()
 import json
 import hashlib
 import Crypto.Random
@@ -16,15 +19,29 @@ import json
 from docopt import docopt
 import sys
 import base64
+import sys
+
+from typing import Iterable
+
+# from collections import Iterable
+# < py38
+
+
+def flatten(items):
+    """Yield items from any nested iterable; see Reference."""
+    for x in items:
+        if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
+            for sub_x in flatten(x):
+                yield sub_x
+        else:
+            yield x
 
 
 def wait_for_confirmation(client, txid):
     last_round = client.status().get("last-round")
     txinfo = client.pending_transaction_info(txid)
     while not (txinfo.get("confirmed-round") and txinfo.get("confirmed-round") > 0):
-        print("Waiting for confirmation")
-        last_round += 1
-        client.status_after_block(last_round)
+        gevent.sleep(5)
         txinfo = client.pending_transaction_info(txid)
     return txinfo
 
@@ -39,7 +56,11 @@ def application_state(algodclient, app_id):
         base64.b64decode(item["key"]): base64.b64decode(item["value"]["bytes"])
         if item["value"]["type"] == 1
         else item["value"]["uint"]
-        for item in (appinfo["params"]["global-state"] if "global-state" in appinfo["params"] else [])
+        for item in (
+            appinfo["params"]["global-state"]
+            if "global-state" in appinfo["params"]
+            else []
+        )
     }
     out = {}
     for k, v in keys.items():
@@ -54,6 +75,8 @@ def application_state(algodclient, app_id):
 
 
 import socket
+
+
 def big_endian(integer):
     return socket.htonl(integer)
 
@@ -71,12 +94,12 @@ class Player(object):
         wallet_name="unencrypted-default-wallet",
         wallet_password="",
     ):
-
         self.hot_account = hot_account
         self.kmd = KMDClient(kmd_token, kmd_url)
         self.indexer = indexer.IndexerClient(indexer_token, indexer_url)
         self.algod = algod.AlgodClient(algod_token, algod_url)
-        self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
         self.params = self.algod.suggested_params()
+        self.params.last = self.algod.ledger_supply()["current_round"] + 1000
+        self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
         self.params.fee = 1000
         self.params.flat_fee = True
