@@ -85,7 +85,6 @@ class DataBlock(object):
                 print("retry", file=sys.stderr)
                 if "TransactionPool.Remember: fee" in json.loads(str(e))["message"]:
                     gevent.sleep(10)
-                    continue
                 else:
                     raise e
         self.txid = self.txn_result
@@ -258,7 +257,7 @@ class AccountAllocator:
                 self.pending_account = account
             elif account != self.pending_account:
                 if self.pending_deficit != 0:
-                    self.txns.appendleft(
+                    self.txns.insert(
                         0,
                         transaction.PaymentTxn(
                             player.hot_account,
@@ -284,6 +283,7 @@ def _commit_txn(player, txn):
         return txid  # result['application-index'] if 'application-index' in result else None
     else:
         signed_txn = player.wallet.sign_transaction(txn)
+        print(signed_txn.transaction.receiver,file=sys.stderr)
         txid = player.algod.send_transaction(signed_txn)
         result = wait_for_confirmation(
             player.algod, txid
@@ -294,7 +294,6 @@ def _commit_txn(player, txn):
 def commit_txns_for_accounts(player, txns_by_account_iter):
     active_groups = deque([])
     application_txns = deque([])
-    finished_jobs = deque([])
     queue_level = 1
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
@@ -302,14 +301,16 @@ def commit_txns_for_accounts(player, txns_by_account_iter):
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 2 * queue_level:
+        while len(active_groups) > 5 * queue_level:
             active_group = active_groups.popleft()
-            gevent.joinall([active_group[0]])
+            gevent.joinall([active_group[0]])[0].value
             application_txns.append(next(active_group[1]))
-        while len(application_txns) > 2 * queue_level:
-            finished_jobs += gevent.joinall(application_txns.popleft())
-        while len(finished_jobs) > 0:
-            yield finished_jobs.popleft().value
+        while len(application_txns) > 200 * queue_level:
+            for group in application_txns:
+                finished_group = gevent.joinall(group)
+                for job in finished_group:
+                    yield job.value
+            application_txns = []
 
 
 def _commit_txns_for_account(player, txns):
