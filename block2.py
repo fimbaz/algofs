@@ -274,6 +274,15 @@ class AccountAllocator:
             block.account = account
             self.pending_deficit += deficit
             self.txns.append(block)
+        self.txns.insert(
+            0,
+            transaction.PaymentTxn(
+                player.hot_account,
+                player.params,
+                self.pending_account,
+                self.pending_deficit,
+            ),
+        )
         yield self.txns
 
 
@@ -283,7 +292,6 @@ def _commit_txn(player, txn):
         return txid  # result['application-index'] if 'application-index' in result else None
     else:
         signed_txn = player.wallet.sign_transaction(txn)
-        print(signed_txn.transaction.receiver,file=sys.stderr)
         txid = player.algod.send_transaction(signed_txn)
         result = wait_for_confirmation(
             player.algod, txid
