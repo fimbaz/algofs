@@ -165,6 +165,14 @@ APP_DEPOSIT = 2000000
 MAX_BLOCK_SIZE = 7000
 
 
+def chunked_file(file_obj, chunk_size):
+    while True:
+        data = file_obj.read(chunk_size)
+        if not data:
+            break
+        yield data
+
+
 def chunked(data, chunk_size):
     for i in range(0, len(data), chunk_size):
         yield data[i : i + chunk_size]
@@ -339,7 +347,7 @@ if __name__ == "__main__":
             sys.stdout.buffer.write(DataBlock(player.algod, app_id=int(line)).data)
     if args["write"]:
         allocator = AccountAllocator(player)
-        data = open(args["<file>"], "rb").read()
+        file_obj = open(args["<file>"], "rb")
         algod = algodclient.AlgodClient(
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
@@ -347,7 +355,7 @@ if __name__ == "__main__":
         for txid in commit_txns_for_accounts(
             player,
             allocator.allocate_storage(
-                data_to_blocks(player, chunked(data, MAX_BLOCK_SIZE))
+                data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
             ),
         ):
             result = wait_for_confirmation(player.algod, txid)
