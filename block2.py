@@ -2,6 +2,7 @@ import gevent
 from gevent import monkey
 
 monkey.patch_all()
+import itertools
 from algosdk.future import transaction
 from disas import program_scratch
 from pyteal import *
@@ -292,25 +293,32 @@ def _commit_txn(player, txn):
 
 def commit_txns_for_accounts(player, txns_by_account_iter):
     active_groups = deque([])
+    application_txns = deque([])
     finished_jobs = deque([])
-    for txns in txns_by_account_iter:
-        active_groups.append(_commit_txns_for_account(player, txns))
-        while len(active_groups) > 100:
-            finished_jobs += gevent.joinall(active_groups.popleft())
+    queue_level = 1
+    for txns in itertools.chain(txns_by_account_iter, [[]]):
+        if txns:
+            commit_batch = _commit_txns_for_account(player, txns)
+            active_groups.append([next(commit_batch), commit_batch])
+        else:
+            queue_level = 0
+        while len(active_groups) > 2 * queue_level:
+            active_group = active_groups.popleft()
+            gevent.joinall([active_group[0]])
+            application_txns.append(next(active_group[1]))
+        while len(application_txns) > 2 * queue_level:
+            finished_jobs += gevent.joinall(application_txns.popleft())
         while len(finished_jobs) > 0:
             yield finished_jobs.popleft().value
-
-    for group in active_groups:
-        finished_jobs = gevent.joinall(group)
-        for job in finished_jobs:
-            yield job.value
 
 
 def _commit_txns_for_account(player, txns):
     if not isinstance(txns[0], DataBlock):
-        _ = _commit_txn(player, txns[0])
-        txns = list(txns)[1:]
-    return [gevent.spawn(_commit_txn, player, txn) for txn in txns]
+        yield gevent.spawn(_commit_txn, player, txns.popleft())
+    else:
+        yield gevent.spawn(len, "")
+
+    yield ([gevent.spawn(_commit_txn, player, txn) for txn in txns])
 
 
 def data_from_appids(algod, app_id_iter):
