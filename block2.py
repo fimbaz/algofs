@@ -302,23 +302,22 @@ def _commit_txn(player, txn):
 def commit_txns_for_accounts(player, txns_by_account_iter):
     active_groups = deque([])
     application_txns = deque([])
-    queue_level = 10
+    queue_level = 1
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
             commit_batch = _commit_txns_for_account(player, txns)
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 10 * queue_level:
+        while len(active_groups) > 1 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(next(active_group[1]))
-        while len(application_txns) > 10 * queue_level:
-            for group in application_txns:
-                finished_group = gevent.joinall(group)
-                for job in finished_group:
-                    yield job.value
-            application_txns = []
+        while len(application_txns) > 1 * queue_level:
+            group = application_txns.popleft()
+            finished_group = gevent.joinall(group)
+            for job in finished_group:
+                yield job.value
 
 
 def _commit_txns_for_account(player, txns):
@@ -375,5 +374,6 @@ if __name__ == "__main__":
                 data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
             ),
         ):
+            print(txid)
             if(isinstance(txid,int)):
                 print(txid)
