@@ -288,15 +288,15 @@ class AccountAllocator:
 
 def _commit_txn(player, txn):
     if isinstance(txn, DataBlock):
-        txid = txn.burn(player, sync=False, send=True, sign=True)
-        return txid  # result['application-index'] if 'application-index' in result else None
+        app_id = txn.burn(player, sync=True, send=True, sign=True)
+        return app_id  # result['application-index'] if 'application-index' in result else None
     else:
         signed_txn = player.wallet.sign_transaction(txn)
         txid = player.algod.send_transaction(signed_txn)
         result = wait_for_confirmation(
             player.algod, txid
         )  # wait for funding txns to happen
-        return txid
+        return None
 
 
 def commit_txns_for_accounts(player, txns_by_account_iter):
@@ -309,7 +309,7 @@ def commit_txns_for_accounts(player, txns_by_account_iter):
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 1 * queue_level:
+        while len(active_groups) > 10 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(next(active_group[1]))
@@ -375,6 +375,5 @@ if __name__ == "__main__":
                 data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
             ),
         ):
-            result = wait_for_confirmation(player.algod, txid)
-            if "application-index" in result:
-                print(result["application-index"], flush=True)
+            if(isinstance(txid,int)):
+                print(txid)
