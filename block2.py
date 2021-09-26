@@ -183,8 +183,11 @@ def data_to_blocks(player, data_iter):
         yield DataBlock(player.algod, block_type=DataBlock.BLOCK_TYPE_DATA, data=block)
 
 
-def list_keys_forever(player):
-    initial_keys = player.wallet.list_keys()
+def list_keys_forever(player,start_with_current=False):
+    if start_with_current:
+        initial_keys = player.wallet.list_keys()
+    else:
+        initial_keys = []
     for key in initial_keys:
         yield key
     while True:
@@ -302,7 +305,7 @@ def _commit_txn(player, txn):
 def commit_txns_for_accounts(player, txns_by_account_iter):
     active_groups = deque([])
     application_txns = deque([])
-    queue_level = 1
+    queue_level = 10
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
             commit_batch = _commit_txns_for_account(player, txns)
