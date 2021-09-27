@@ -38,10 +38,10 @@ def flatten(items):
 
 def wait_for_confirmation(client, txid):
     last_round = client.status().get("last-round")
-    txinfo = client.pending_transaction_info(txid)
+    txinfo = {}
     while not (txinfo.get("confirmed-round") and txinfo.get("confirmed-round") > 0):
-        gevent.sleep(5)
         txinfo = client.pending_transaction_info(txid)
+        gevent.sleep(10)
     return txinfo
 
 
