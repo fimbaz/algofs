@@ -319,7 +319,7 @@ def commit_txns_for_accounts(player, txns_by_account_iter):
         while len(application_txns) > 1 * queue_level:
             group = application_txns.popleft()
             finished_group = gevent.joinall(group)
-            for job in finished_group:
+            for job in group:
                 yield job.value
 
 
