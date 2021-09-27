@@ -3,7 +3,6 @@ from gevent import monkey
 monkey.patch_all()
 import json
 import hashlib
-import Crypto.Random
 from algosdk.wallet import Wallet
 from docopt import docopt
 from algosdk import account, encoding

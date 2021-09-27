@@ -377,6 +377,5 @@ if __name__ == "__main__":
                 data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
             ),
         ):
-            print(txid)
             if(isinstance(txid,int)):
                 print(txid)
