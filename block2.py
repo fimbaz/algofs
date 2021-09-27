@@ -312,11 +312,11 @@ def commit_txns_for_accounts(player, txns_by_account_iter):
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 5 * queue_level:
+        while len(active_groups) > 4 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(next(active_group[1]))
-        while len(application_txns) > 5 * queue_level:
+        while len(application_txns) > 2 * queue_level:
             group = application_txns.popleft()
             finished_group = gevent.joinall(group)
             for job in group:
