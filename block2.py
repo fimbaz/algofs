@@ -235,7 +235,7 @@ class AccountAllocator:
         self.next_account = None
         self.pending_account = None
 
-    def allocate_storage(self, block_iter, auto_destruct=True):
+    def allocate_storage(self, block_iter):
         return self._batch_transactions(self._allocate_accounts(block_iter))
 
     def _allocate_accounts(self, block_iter):
@@ -286,9 +286,6 @@ class AccountAllocator:
             block.account = account
             self.pending_deficit += deficit
             self.txns.append(block)
-        yield self.destruct()
-
-    def destruct(self):
         self.txns.insert(
             0,
             transaction.PaymentTxn(
@@ -304,7 +301,7 @@ class AccountAllocator:
         self.app_slots_left = 0
         txns = self.txns
         self.txns = deque([])
-        return txns
+        yield txns
 
 
 def _commit_txn(player, txn, blocks=False):
@@ -374,33 +371,19 @@ def index_datablocks(player, burned_block_iter):
 
 
 def index_up_datablocks(player, allocator, data_block_iter):
-    result = _index_up_datablocks(player, allocator, data_block_iter)
-    txn = allocator.destruct()
-    signed_txn = player.wallet.sign_transaction(txn)
-    txid = player.algod.send_transaction(signed_txn)
-    result = wait_for_confirmation(
-            player.algod, txid
-        )  # wait for funding txns to happen
-
-    return result
-
-
-def _index_up_datablocks(player, allocator, data_block_iter):
     index_block_iter = commit_txns_for_accounts(
         player,
-        allocator.allocate_storage(
-            index_datablocks(player, data_block_iter)
-        ),
+        allocator.allocate_storage(index_datablocks(player, data_block_iter)),
         blocks=True,
     )
-    index_first = []
-    index_rest = []
-    try:
-        index_first = [next(index_block_iter)]
-        while True:
-            index_rest += [*_index_up_datablocks(player, allocator, index_block_iter)]
-    except StopIteration:
-        yield index_first + index_rest
+    while True:
+        layer = [*index_block_iter]        
+        if len(layer) > 1:
+            layer = index_up_datablocks(player,allocator,index_datablocks(layer))
+        else:
+            return layer[0]
+    
+  
 
 
 if __name__ == "__main__":
@@ -439,7 +422,7 @@ if __name__ == "__main__":
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
         print(
-            next(
+            print(
                 index_up_datablocks(
                     player,
                     allocator,
@@ -451,7 +434,7 @@ if __name__ == "__main__":
                             )
                         ),
                     ),
-                )
+                ).app_id
             )
         )
 
