@@ -9,7 +9,15 @@ from pyteal import *
 from algosdk.future import transaction
 from algosdk import encoding
 import algosdk
-from util import wait_for_confirmation, application_state, big_endian, Player, flatten
+from util import (
+    wait_for_confirmation,
+    application_state,
+    big_endian,
+    Player,
+    flatten,
+    btoi,
+    itob,
+)
 from collections import deque
 from algosdk.v2client import algod as algodclient
 import base64
@@ -183,7 +191,7 @@ def data_to_blocks(player, data_iter):
         yield DataBlock(player.algod, block_type=DataBlock.BLOCK_TYPE_DATA, data=block)
 
 
-def list_keys_forever(player,start_with_current=False):
+def list_keys_forever(player, start_with_current=False):
     if start_with_current:
         initial_keys = player.wallet.list_keys()
     else:
@@ -239,19 +247,20 @@ class AccountAllocator:
                 self.app_slots_left = MAX_APPS_PER_ACCOUNT - len(
                     self.account_info["created-apps"]
                 )
-            try:
-                while self.app_slots_left > 0:
-                    required_balance = APP_DEPOSIT * (10 - self.app_slots_left)
-                    deficit = (
-                        required_balance - self.account_info["amount"]
-                        if required_balance > self.account_info["amount"]
-                        else 0
-                    )
-
-                    self.app_slots_left -= 1
-                    yield (next(block_iter), self.next_account, deficit)
-            except StopIteration:
-                break
+            else:
+                try:
+                    while self.app_slots_left > 0:
+                        self.app_slots_left -= 1
+                        required_balance = APP_DEPOSIT * (10 - self.app_slots_left)
+                        deficit = (
+                            required_balance - self.account_info["amount"]
+                            if required_balance > self.account_info["amount"]
+                            else 0
+                        )
+                        print(f"{self.next_account},{deficit}")
+                        yield (next(block_iter), self.next_account, deficit)
+                except StopIteration:
+                    break
 
     def _batch_transactions(self, blockaccountdeficit_iter):
         # Not thread safe yet. TODO: add a lock.
@@ -286,13 +295,21 @@ class AccountAllocator:
                 self.pending_deficit,
             ),
         )
-        yield self.txns
+
+        self.pending_deficit = 0
+        self.deficit = 0
+        self.app_slots_left=0
+        txns = self.txns
+        self.txns = deque([])
+        yield txns
 
 
-def _commit_txn(player, txn):
+def _commit_txn(player, txn, blocks=False):
     if isinstance(txn, DataBlock):
         app_id = txn.burn(player, sync=True, send=True, sign=True)
-        return app_id  # result['application-index'] if 'application-index' in result else None
+        return (
+            txn if blocks else app_id
+        )  # result['application-index'] if 'application-index' in result else None
     else:
         signed_txn = player.wallet.sign_transaction(txn)
         txid = player.algod.send_transaction(signed_txn)
@@ -302,13 +319,13 @@ def _commit_txn(player, txn):
         return None
 
 
-def commit_txns_for_accounts(player, txns_by_account_iter):
+def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False):
     active_groups = deque([])
     application_txns = deque([])
     queue_level = 10
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
-            commit_batch = _commit_txns_for_account(player, txns)
+            commit_batch = _commit_txns_for_account(player, txns, blocks)
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
@@ -320,21 +337,54 @@ def commit_txns_for_accounts(player, txns_by_account_iter):
             group = application_txns.popleft()
             finished_group = gevent.joinall(group)
             for job in group:
-                yield job.value
+                if job.value is not None:
+                    yield job.value
 
 
-def _commit_txns_for_account(player, txns):
+def _commit_txns_for_account(player, txns, blocks=False):
     if not isinstance(txns[0], DataBlock):
-        yield gevent.spawn(_commit_txn, player, txns.popleft())
+        yield gevent.spawn(_commit_txn, player, txns.popleft(), blocks)
     else:
         yield gevent.spawn(len, "")
 
-    yield ([gevent.spawn(_commit_txn, player, txn) for txn in txns])
+    yield ([gevent.spawn(_commit_txn, player, txn, blocks) for txn in txns])
 
 
 def data_from_appids(algod, app_id_iter):
     for app_id in app_id_iter:
         yield DataBlock(algod, app_id=app_id).data
+
+
+def index_datablocks(player, burned_block_iter):
+    out = bytearray()
+    for block in burned_block_iter:
+        out += itob(block.app_id if isinstance(block, DataBlock) else block)
+        if len(out) >= DataBlock.MAX_BLOCK_SIZE:
+            yield DataBlock(
+                player.algod, block_type=DataBlock.BLOCK_TYPE_INDEX, data=out
+            )
+            out = bytearray()
+    if out:
+        block= DataBlock(player.algod, block_type=DataBlock.BLOCK_TYPE_INDEX, data=out)
+        print(block.data)
+        yield block
+
+
+def index_up_datablocks(player, allocator, data_block_iter):
+    
+    index_block_iter = commit_txns_for_accounts(
+        player,
+        allocator.allocate_storage(index_datablocks(player, data_block_iter)),
+        blocks=True,
+    )
+    index_first = []
+    index_rest = []
+    try:
+        index_first = next(index_block_iter)
+        while True:
+            index_rest += [*index_up_datablocks(player, allocator, data_block_iter)]
+    except StopIteration:
+        yield index_first + index_rest
 
 
 if __name__ == "__main__":
@@ -356,6 +406,7 @@ if __name__ == "__main__":
     block.py read <app-id>
     block.py readappids <file>
     block.py write <file>
+    block.py write-indexed <file>
     block.py delete <file>
     block.py format
 """
@@ -364,6 +415,27 @@ if __name__ == "__main__":
         datafile = open(args["<file>"], "rb")
         for line in datafile.readlines():
             sys.stdout.buffer.write(DataBlock(player.algod, app_id=int(line)).data)
+
+    if args["write-indexed"]:
+        allocator = AccountAllocator(player)
+        file_obj = open(args["<file>"], "rb")
+        algod = algodclient.AlgodClient(
+            os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
+        )
+        print(next(
+            index_up_datablocks(
+                player,
+                allocator,
+                commit_txns_for_accounts(
+                    player,
+                    allocator.allocate_storage(
+                        data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
+                    ),
+                ),
+            )
+        ))
+
+        txids = []
     if args["write"]:
         allocator = AccountAllocator(player)
         file_obj = open(args["<file>"], "rb")
@@ -377,5 +449,5 @@ if __name__ == "__main__":
                 data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
             ),
         ):
-            if(isinstance(txid,int)):
-                print(txid,flush=True)
+            if isinstance(txid, int):
+                print(txid, flush=True)

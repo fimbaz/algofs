@@ -80,6 +80,29 @@ def big_endian(integer):
     return socket.htonl(integer)
 
 
+def itob(i):
+    return bytes(
+        [
+            k & 255
+            for k in [i >> 56, i >> 48, i >> 40, i >> 32, i >> 24, i >> 16, i >> 8, i]
+        ]
+    )
+
+
+def btoi(b):
+    return (
+        (b[0] * 2 ** 56)
+        + (b[1] * 2 ** 48)
+        + (b[2] * 2 ** 40)
+        + (b[3] * 2 ** 32)
+        + (b[4] * 2 ** 24)
+        + (b[5] * 2 ** 16)
+        + (b[6] * 2 ** 8)
+        + b[7]
+    )
+
+
+
 class Player(object):
     def __init__(
         self,
@@ -102,3 +125,5 @@ class Player(object):
         self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
         self.params.fee = 1000
         self.params.flat_fee = True
+
+        
