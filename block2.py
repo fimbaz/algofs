@@ -32,7 +32,7 @@ monkey.patch_all()
 
 
 class DataBlock(object):
-    MAX_BLOCK_SIZE = 400  # 1024 * 7  # might have to play with this.
+    MAX_BLOCK_SIZE = 7000  # 1024 * 7  # might have to play with this.
     BLOCK_ACCOUNT_DEPOSIT = 9800000
     MAX_APPS_PER_ACCOUNT = 10
     BLOCK_TYPE_DATA = 1
