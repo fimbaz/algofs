@@ -228,7 +228,6 @@ class AccountAllocator:
     def __init__(self, player):
         self.player = player
         self.keys_iter = list_keys_forever(player)
-        self.txns = deque([])
         self.deficit = 0
         self.pending_deficit = 0
         self.app_slots_left = 0
@@ -262,14 +261,14 @@ class AccountAllocator:
                     break
 
     def _batch_transactions(self, blockaccountdeficit_iter):
+        txns = deque([])
         # Not thread safe yet. TODO: add a lock.
         for block, account, deficit in blockaccountdeficit_iter:
             if not self.pending_account:
                 self.pending_account = account
             elif account != self.pending_account:
                 if self.pending_deficit != 0:
-                    self.txns.insert(
-                        0,
+                    txns.appendleft(
                         transaction.PaymentTxn(
                             player.hot_account,
                             player.params,
@@ -279,13 +278,13 @@ class AccountAllocator:
                     )
                 self.pending_deficit = 0
                 self.pending_account = account
-                txns_to_yield = self.txns
-                self.txns = deque([])
+                txns_to_yield = txns
+                txns = deque([])
                 yield txns_to_yield
             block.account = account
             self.pending_deficit += deficit
-            self.txns.append(block)
-        self.txns.insert(
+            txns.append(block)
+        txns.insert(
             0,
             transaction.PaymentTxn(
                 player.hot_account,
@@ -297,10 +296,10 @@ class AccountAllocator:
 
         self.pending_deficit = 0
         self.deficit = 0
-        self.app_slots_left = 0
-        txns = self.txns
-        self.txns = deque([])
-        yield txns
+        self.app_slots_left = 0 # use extra accounts to avoid conflicts
+        txns_out = txns
+        txns = deque([])
+        yield txns_out
 
 
 def _commit_txn(player, txn, blocks=False):
@@ -377,9 +376,9 @@ def index_up_datablocks(player, allocator, data_block_iter):
     layer = [*index_block_iter]
     if len(layer) > 1:
         next_layer = index_up_datablocks(player, allocator, layer)
-        layer = next_layer
         if not next_layer:
             return layer
+        layer = next_layer
     if len(layer) == 1:
         return layer
 

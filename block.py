@@ -297,8 +297,7 @@ class IndexBlock(object):
     def index_datablocks(player, burned_block_iter):
         out = bytearray()
         for block in burned_block_iter:
-            
-        data = b"".join([itob(block.app_id) for block in blocks])
+            data = b"".join([itob(block.app_id) for block in blocks])
         return [
             DataBlock(
                 algod,
