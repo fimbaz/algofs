@@ -32,7 +32,7 @@ monkey.patch_all()
 
 
 class DataBlock(object):
-    MAX_BLOCK_SIZE = 7000  # 1024 * 7  # might have to play with this.
+    MAX_BLOCK_SIZE = 400  # 1024 * 7  # might have to play with this.
     BLOCK_ACCOUNT_DEPOSIT = 9800000
     MAX_APPS_PER_ACCOUNT = 10
     BLOCK_TYPE_DATA = 1
@@ -257,7 +257,6 @@ class AccountAllocator:
                             if required_balance > self.account_info["amount"]
                             else 0
                         )
-                        print(f"{self.next_account},{deficit}")
                         yield (next(block_iter), self.next_account, deficit)
                 except StopIteration:
                     break
@@ -366,7 +365,6 @@ def index_datablocks(player, burned_block_iter):
             out = bytearray()
     if out:
         block = DataBlock(player.algod, block_type=DataBlock.BLOCK_TYPE_INDEX, data=out)
-        print(block.data)
         yield block
 
 
@@ -376,14 +374,32 @@ def index_up_datablocks(player, allocator, data_block_iter):
         allocator.allocate_storage(index_datablocks(player, data_block_iter)),
         blocks=True,
     )
-    while True:
-        layer = [*index_block_iter]        
-        if len(layer) > 1:
-            layer = index_up_datablocks(player,allocator,index_datablocks(layer))
-        else:
-            return layer[0]
-    
-  
+    layer = [*index_block_iter]
+    if len(layer) > 1:
+        next_layer = index_up_datablocks(player, allocator, layer)
+        layer = next_layer
+        if not next_layer:
+            return layer
+    if len(layer) == 1:
+        return layer
+
+
+def expand_one_indexblock(player, block):
+    app_ids = []
+    for i in range(0, len(block.data), 8):
+        app_ids.append(btoi(block.data[i : i + 8]))
+    return [DataBlock(algod=player.algod, app_id=app_id) for app_id in app_ids]
+
+
+def expand_indexblock(player, block):
+    if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
+        index_blocks = expand_one_indexblock(player, block)
+        data_blocks = []
+        for block in index_blocks:
+            data_blocks += expand_indexblock(player, block)
+        return data_blocks
+    if block.block_type == DataBlock.BLOCK_TYPE_DATA:
+        return [block]
 
 
 if __name__ == "__main__":
@@ -406,6 +422,7 @@ if __name__ == "__main__":
     block.py readappids <file>
     block.py write <file>
     block.py write-indexed <file>
+    block.py read-indexed <app-id>
     block.py delete <file>
     block.py format
 """
@@ -422,23 +439,25 @@ if __name__ == "__main__":
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
         print(
-            print(
-                index_up_datablocks(
+            index_up_datablocks(
+                player,
+                allocator,
+                commit_txns_for_accounts(
                     player,
-                    allocator,
-                    commit_txns_for_accounts(
-                        player,
-                        allocator.allocate_storage(
-                            data_to_blocks(
-                                player, chunked_file(file_obj, MAX_BLOCK_SIZE)
-                            )
-                        ),
+                    allocator.allocate_storage(
+                        data_to_blocks(
+                            player, chunked_file(file_obj, DataBlock.MAX_BLOCK_SIZE)
+                        )
                     ),
-                ).app_id
-            )
+                ),
+            )[0].app_id
         )
+    if args["read-indexed"]:
+        for block in expand_indexblock(
+            player, DataBlock(player.algod, app_id=int(args["<app-id>"]))
+        ):
+            sys.stdout.buffer.write(block.data)
 
-        txids = []
     if args["write"]:
         allocator = AccountAllocator(player)
         file_obj = open(args["<file>"], "rb")
@@ -449,7 +468,7 @@ if __name__ == "__main__":
         for txid in commit_txns_for_accounts(
             player,
             allocator.allocate_storage(
-                data_to_blocks(player, chunked_file(file_obj, MAX_BLOCK_SIZE))
+                data_to_blocks(player, chunked_file(file_obj, DataBlock.MAX_BLOCK_SIZE))
             ),
         ):
             if isinstance(txid, int):
