@@ -202,6 +202,28 @@ def list_keys_forever(player, start_with_current=False):
         yield player.wallet.generate_key()
 
 
+def send_txn_groups(player, txngroup_iter):
+    last_round = player.algod.status().get("last-round")
+    while True:
+        try:
+            self.txn_result = player.algod.send_transaction(signed_txn)
+            break
+        except algosdk.error.AlgodHTTPError as e:
+            print("retry", file=sys.stderr)
+            if "TransactionPool.Remember: fee {1000}" in json.loads(str(e))["message"]:
+                time.sleep(5)
+                continue
+            else:
+                raise e
+    self.txid = self.txn_result
+    if sync:
+        self.app_id = wait_for_confirmation(player.algod, self.txn_result)[
+            "application-index"
+        ]
+        return self.app_id
+    return self.txn_result
+
+
 class AccountAllocator:
     def __init__(self, player):
         self.player = player
@@ -274,7 +296,7 @@ class AccountAllocator:
 
         self.pending_deficit = 0
         self.deficit = 0
-        self.app_slots_left = 0 # use extra accounts to avoid conflicts
+        self.app_slots_left = 0  # use extra accounts to avoid conflicts
         txns_out = txns
         txns = deque([])
         yield txns_out
@@ -283,7 +305,6 @@ class AccountAllocator:
 def _commit_txn(player, txn, blocks=False):
     if isinstance(txn, DataBlock):
         app_id = txn.burn(player, sync=True, send=True, sign=True)
-        print(".", file=sys.stderr,flush=True,end="")
         return (
             txn if blocks else app_id
         )  # result['application-index'] if 'application-index' in result else None
@@ -293,26 +314,25 @@ def _commit_txn(player, txn, blocks=False):
         result = wait_for_confirmation(
             player.algod, txid
         )  # wait for funding txns to happen
-        print("$", file=sys.stderr,flush=True,end="")
         return None
 
 
 def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False):
     active_groups = deque([])
     application_txns = deque([])
-    queue_level = 10
+    queue_level = 1
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
             commit_batch = _commit_txns_for_account(player, txns, blocks)
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 2 * queue_level:
+        while len(active_groups) > 4 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
-            application_txns.append(next(active_group[1]))
-        while len(application_txns) > 1 * queue_level:
-            group = application_txns.popleft()
+            application_txns.append(active_group[1])
+        while len(application_txns) > 11 * queue_level:
+            group = next(application_txns.popleft())
             finished_group = gevent.joinall(group)
             for job in group:
                 if job.value is not None:
@@ -370,14 +390,32 @@ def expand_one_indexblock(player, block):
     return [DataBlock(algod=player.algod, app_id=app_id) for app_id in app_ids]
 
 
+def expand_one_indexblock_iter(player, block):
+    for i in range(0, len(block.data), 8):
+        yield DataBlock(algod=player.algod, app_id=btoi(block.data[i : i + 8]))
+
+
+def expand_indexblock_iter(player, block):
+    if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
+        print("i", file=sys.stderr, flush=True, end="")                
+        index_block_iter = expand_one_indexblock_iter(player, block)
+        for index_block in index_block_iter:
+            for block in expand_indexblock_iter(player,index_block):
+                yield block
+    if block.block_type == DataBlock.BLOCK_TYPE_DATA:
+        print(".", file=sys.stderr, flush=True, end="")        
+        yield block
+
+
 def expand_indexblock(player, block):
     if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
+
         index_blocks = expand_one_indexblock(player, block)
-        data_blocks = []
+        data_blocks = deque([])
         for block in index_blocks:
             data_blocks += expand_indexblock(player, block)
-        return data_blocks
     if block.block_type == DataBlock.BLOCK_TYPE_DATA:
+        print(".", file=sys.stderr, flush=True, end="")
         return [block]
 
 
@@ -401,6 +439,7 @@ if __name__ == "__main__":
     block.py readappids <file>
     block.py write <file>
     block.py write-indexed <file>
+    block.py show-pending
     block.py read-indexed <app-id>
     block.py delete <file>
     block.py format
@@ -432,10 +471,14 @@ if __name__ == "__main__":
             )[0].app_id
         )
     if args["read-indexed"]:
-        for block in expand_indexblock(
+        for block in expand_indexblock_iter(
             player, DataBlock(player.algod, app_id=int(args["<app-id>"]))
         ):
             sys.stdout.buffer.write(block.data)
+
+    if args["show-pending"]:
+        txns = player.algod.pending_transactions()
+        print(txns)
 
     if args["write"]:
         allocator = AccountAllocator(player)
