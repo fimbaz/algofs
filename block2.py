@@ -304,9 +304,9 @@ class AccountAllocator:
         yield txns_out
 
 
-def _commit_txn(player, txn, blocks=False):
+def _commit_txn(player, txn, blocks=False,sync=True):
     if isinstance(txn, DataBlock):
-        app_id = txn.burn(player, sync=True, send=True, sign=True)
+        app_id = txn.burn(player, sync=sync, send=True, sign=True)
         return (
             txn if blocks else app_id
         )  # result['application-index'] if 'application-index' in result else None
@@ -319,21 +319,21 @@ def _commit_txn(player, txn, blocks=False):
         return
 
 
-def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False):
+def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=True):
     active_groups = deque([])
     application_txns = deque([])
     queue_level = 1
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
-            commit_batch = _commit_txns_for_account(player, txns, blocks)
+            commit_batch = _commit_txns_for_account(player, txns, blocks,txid=txid)
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 4 * queue_level:
+        while len(active_groups) > 2 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(active_group[1])
-        while len(application_txns) > 11 * queue_level:
+        while len(application_txns) > 2 * queue_level:
             group = next(application_txns.popleft())
             finished_group = gevent.joinall(group)
             for job in group:
@@ -341,13 +341,13 @@ def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False):
                     yield job.value
 
 
-def _commit_txns_for_account(player, txns, blocks=False):
+def _commit_txns_for_account(player, txns, blocks=False,txid=False):
     if not isinstance(txns[0], DataBlock):
         yield gevent.spawn(_commit_txn, player, txns.popleft(), blocks)
     else:
         yield gevent.spawn(len, "")
 
-    yield ([gevent.spawn(_commit_txn, player, txn, blocks) for txn in txns])
+    yield ([gevent.spawn(_commit_txn, player, txn, blocks,sync=(not txid)) for txn in txns])
 
 
 def data_from_appids(algod, app_id_iter):
@@ -446,7 +446,7 @@ if __name__ == "__main__":
         """Usage:
     block.py read <app-id>
     block.py readappids <file>
-    block.py write <file>
+    block.py write <file> [--txids]
     block.py write-index <file>
     block.py write-indexed <file>
     block.py show-pending
@@ -491,12 +491,12 @@ if __name__ == "__main__":
         print(txns)
     if args["write-index"]:
         file_obj = open(args["<file>"], "rb")
-        allocator = AccountAllocator(player)        
-        print(index_up_datablocks(
-            player,
-            allocator,
-            blocks_from_appids(player,file_obj.readlines())
-        )[0].app_id)
+        allocator = AccountAllocator(player)
+        print(
+            index_up_datablocks(
+                player, allocator, blocks_from_appids(player, file_obj.readlines())
+            )[0].app_id
+        )
 
     if args["write"]:
         allocator = AccountAllocator(player)
@@ -510,6 +510,6 @@ if __name__ == "__main__":
             allocator.allocate_storage(
                 data_to_blocks(player, chunked_file(file_obj, DataBlock.MAX_BLOCK_SIZE))
             ),
+            txid=args["--txids"],
         ):
-            if isinstance(txid, int):
-                print(txid, flush=True)
+            print(txid, flush=True)
