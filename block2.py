@@ -358,7 +358,6 @@ def data_from_appids(algod, app_id_iter):
 def index_datablocks(player, burned_block_iter):
     out = bytearray()
     for block in burned_block_iter:
-        print(block.app_id if isinstance(block, DataBlock) else block)
         out += itob(block.app_id if isinstance(block, DataBlock) else block)
         if len(out) >= DataBlock.MAX_BLOCK_SIZE:
             yield DataBlock(
@@ -399,15 +398,12 @@ def expand_one_indexblock_iter(player, block):
 
 
 def expand_indexblock_iter(player, block):
-    if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
-        #print("i", file=sys.stderr, flush=True, end="")
-        index_block_iter = expand_one_indexblock_iter(player, block)
-        for index_block in index_block_iter:
-            for block in expand_indexblock_iter(player, index_block):
-                yield block
-    elif block.block_type == DataBlock.BLOCK_TYPE_DATA:
-        print(block.app_id, file=sys.stderr, flush=True, end="\n")
+    if block.block_type == DataBlock.BLOCK_TYPE_DATA:
         yield block
+    if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
+        for some_block in expand_one_indexblock_iter(player, block):
+            for data_block in expand_indexblock_iter(player, some_block):
+                yield data_block
 
 
 def blocks_from_appids(player, appids_iter):
