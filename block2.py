@@ -41,7 +41,7 @@ class DataBlock(object):
     BLOCK_TYPE_DIRECTORY = 4
 
     def __init__(
-        self, algod=None, block_type=0, app_id=None, data=None, sync=False, account=None
+            self, algod=None, block_type=0, app_id=None, data=None, sync=False,load=True, account=None
     ):
         if not (app_id or data) or (app_id and data):
             raise ValueError("specify either app_id or data")
@@ -53,7 +53,7 @@ class DataBlock(object):
             )
         else:
             (program_data, data, block_type) = (
-                DataBlock.load_programs(algod, app_id) if sync else (None, None, None)
+                DataBlock.load_programs(algod, app_id) if load else (None, None, None)
             )
         DataBlock.initialize(
             self, algod, app_id, program_data, data, block_type, account
@@ -319,7 +319,7 @@ def _commit_txn(player, txn, blocks=False,sync=True):
         return
 
 
-def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=True):
+def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=False):
     active_groups = deque([])
     application_txns = deque([])
     queue_level = 1
@@ -329,7 +329,7 @@ def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=Tru
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 2 * queue_level:
+        while len(active_groups) > 12 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(active_group[1])
@@ -383,8 +383,6 @@ def index_up_datablocks(player, allocator, data_block_iter):
         layer = next_layer
     if len(layer) == 1:
         return layer
-    else:
-        return layer
 
 
 def expand_one_indexblock(player, block):
@@ -413,7 +411,7 @@ def expand_indexblock_iter(player, block):
 
 def blocks_from_appids(player, appids_iter):
     for app_id in appids_iter:
-        yield DataBlock(algod=player.algod, app_id=int(app_id), sync=False)
+        yield DataBlock(algod=player.algod, app_id=int(app_id), load=False)
 
 
 def expand_indexblock(player, block):
