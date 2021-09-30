@@ -52,7 +52,9 @@ class DataBlock(object):
                 DataBlock.clear_program(),
             )
         else:
-            (program_data, data, block_type) = DataBlock.load_programs(algod, app_id)
+            (program_data, data, block_type) = (
+                DataBlock.load_programs(algod, app_id) if sync else (None, None, None)
+            )
         DataBlock.initialize(
             self, algod, app_id, program_data, data, block_type, account
         )
@@ -186,9 +188,9 @@ def chunked(data, chunk_size):
         yield data[i : i + chunk_size]
 
 
-def data_to_blocks(player, data_iter):
+def data_to_blocks(player, data_iter, block_type=DataBlock.BLOCK_TYPE_DATA):
     for block in data_iter:
-        yield DataBlock(player.algod, block_type=DataBlock.BLOCK_TYPE_DATA, data=block)
+        yield DataBlock(player.algod, block_type=block_type, data=block)
 
 
 def list_keys_forever(player, start_with_current=False):
@@ -284,16 +286,16 @@ class AccountAllocator:
             block.account = account
             self.pending_deficit += deficit
             txns.append(block)
-        txns.insert(
-            0,
-            transaction.PaymentTxn(
-                player.hot_account,
-                player.params,
-                self.pending_account,
-                self.pending_deficit,
-            ),
-        )
-
+        if self.pending_deficit and self.pending_account:
+            txns.insert(
+                0,
+                transaction.PaymentTxn(
+                    player.hot_account,
+                    player.params,
+                    self.pending_account,
+                    self.pending_deficit,
+                ),
+            )
         self.pending_deficit = 0
         self.deficit = 0
         self.app_slots_left = 0  # use extra accounts to avoid conflicts
@@ -314,7 +316,7 @@ def _commit_txn(player, txn, blocks=False):
         result = wait_for_confirmation(
             player.algod, txid
         )  # wait for funding txns to happen
-        return None
+        return
 
 
 def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False):
@@ -381,6 +383,8 @@ def index_up_datablocks(player, allocator, data_block_iter):
         layer = next_layer
     if len(layer) == 1:
         return layer
+    else:
+        return layer
 
 
 def expand_one_indexblock(player, block):
@@ -397,14 +401,19 @@ def expand_one_indexblock_iter(player, block):
 
 def expand_indexblock_iter(player, block):
     if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
-        print("i", file=sys.stderr, flush=True, end="")                
+        print("i", file=sys.stderr, flush=True, end="")
         index_block_iter = expand_one_indexblock_iter(player, block)
         for index_block in index_block_iter:
-            for block in expand_indexblock_iter(player,index_block):
+            for block in expand_indexblock_iter(player, index_block):
                 yield block
     if block.block_type == DataBlock.BLOCK_TYPE_DATA:
-        print(".", file=sys.stderr, flush=True, end="")        
+        print(".", file=sys.stderr, flush=True, end="")
         yield block
+
+
+def blocks_from_appids(player, appids_iter):
+    for app_id in appids_iter:
+        yield DataBlock(algod=player.algod, app_id=int(app_id), sync=False)
 
 
 def expand_indexblock(player, block):
@@ -438,6 +447,7 @@ if __name__ == "__main__":
     block.py read <app-id>
     block.py readappids <file>
     block.py write <file>
+    block.py write-index <file>
     block.py write-indexed <file>
     block.py show-pending
     block.py read-indexed <app-id>
@@ -479,6 +489,14 @@ if __name__ == "__main__":
     if args["show-pending"]:
         txns = player.algod.pending_transactions()
         print(txns)
+    if args["write-index"]:
+        file_obj = open(args["<file>"], "rb")
+        allocator = AccountAllocator(player)        
+        print(index_up_datablocks(
+            player,
+            allocator,
+            blocks_from_appids(player,file_obj.readlines())
+        )[0].app_id)
 
     if args["write"]:
         allocator = AccountAllocator(player)
