@@ -204,28 +204,6 @@ def list_keys_forever(player, start_with_current=False):
         yield player.wallet.generate_key()
 
 
-def send_txn_groups(player, txngroup_iter):
-    last_round = player.algod.status().get("last-round")
-    while True:
-        try:
-            self.txn_result = player.algod.send_transaction(signed_txn)
-            break
-        except algosdk.error.AlgodHTTPError as e:
-            print("retry", file=sys.stderr)
-            if "TransactionPool.Remember: fee {1000}" in json.loads(str(e))["message"]:
-                time.sleep(5)
-                continue
-            else:
-                raise e
-    self.txid = self.txn_result
-    if sync:
-        self.app_id = wait_for_confirmation(player.algod, self.txn_result)[
-            "application-index"
-        ]
-        return self.app_id
-    return self.txn_result
-
-
 class AccountAllocator:
     def __init__(self, player):
         self.player = player
