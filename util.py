@@ -1,5 +1,6 @@
 import gevent
 from gevent import monkey
+
 monkey.patch_all()
 import json
 import hashlib
@@ -89,6 +90,22 @@ def itob(i):
     )
 
 
+def itob16(i):
+    return bytes([k & 255 for k in [i >> 8, i]])
+
+
+def itob32(i):
+    return bytes([k & 255 for k in [i >> 24, i >> 16, i >> 8, i]])
+
+
+def btoi32(b):
+    return (b[0] * 2 ** 16) + (b[0] * 2 ** 24) + (b[0] * 2 ** 8) + (b[1])
+
+
+def btoi16(b):
+    return (b[0] * 2 ** 8) + (b[1])
+
+
 def btoi(b):
     return (
         (b[0] * 2 ** 56)
@@ -100,7 +117,6 @@ def btoi(b):
         + (b[6] * 2 ** 8)
         + b[7]
     )
-
 
 
 class Player(object):
@@ -125,5 +141,3 @@ class Player(object):
         self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
         self.params.fee = 1000
         self.params.flat_fee = True
-
-        
