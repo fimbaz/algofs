@@ -41,7 +41,14 @@ class DataBlock(object):
     BLOCK_TYPE_DIRECTORY = 4
 
     def __init__(
-            self, algod=None, block_type=0, app_id=None, data=None, sync=False,load=True, account=None
+        self,
+        algod=None,
+        block_type=0,
+        app_id=None,
+        data=None,
+        sync=False,
+        load=True,
+        account=None,
     ):
         if not (app_id or data) or (app_id and data):
             raise ValueError("specify either app_id or data")
@@ -68,10 +75,9 @@ class DataBlock(object):
         self.account = account
 
     def burn(self, player, account=None, sync=False, sign=True, send=True):
-        params = self.algod.suggested_params()
         self.account = account if not self.account else self.account
-        params.fee = 1000
-        params.flat_fee = True
+        player.params.first = self.algod.ledger_supply()["current_round"]
+        player.params.last = player.params.first + 100
         txn = transaction.ApplicationCreateTxn(
             player.hot_account if not self.account else self.account,
             player.params,
@@ -282,7 +288,7 @@ class AccountAllocator:
         yield txns_out
 
 
-def _commit_txn(player, txn, blocks=False,sync=True):
+def _commit_txn(player, txn, blocks=False, sync=True):
     if isinstance(txn, DataBlock):
         app_id = txn.burn(player, sync=sync, send=True, sign=True)
         return (
@@ -297,13 +303,13 @@ def _commit_txn(player, txn, blocks=False,sync=True):
         return
 
 
-def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=False):
+def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False, txid=False):
     active_groups = deque([])
     application_txns = deque([])
     queue_level = 1
     for txns in itertools.chain(txns_by_account_iter, [[]]):
         if txns:
-            commit_batch = _commit_txns_for_account(player, txns, blocks,txid=txid)
+            commit_batch = _commit_txns_for_account(player, txns, blocks, txid=txid)
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
@@ -311,7 +317,7 @@ def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=Fal
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(active_group[1])
-        while len(application_txns) > 2 * queue_level:
+        while len(application_txns) > 12 * queue_level:
             group = next(application_txns.popleft())
             finished_group = gevent.joinall(group)
             for job in group:
@@ -319,13 +325,18 @@ def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False,txid=Fal
                     yield job.value
 
 
-def _commit_txns_for_account(player, txns, blocks=False,txid=False):
+def _commit_txns_for_account(player, txns, blocks=False, txid=False):
     if not isinstance(txns[0], DataBlock):
         yield gevent.spawn(_commit_txn, player, txns.popleft(), blocks)
     else:
         yield gevent.spawn(len, "")
 
-    yield ([gevent.spawn(_commit_txn, player, txn, blocks,sync=(not txid)) for txn in txns])
+    yield (
+        [
+            gevent.spawn(_commit_txn, player, txn, blocks, sync=(not txid))
+            for txn in txns
+        ]
+    )
 
 
 def data_from_appids(algod, app_id_iter):

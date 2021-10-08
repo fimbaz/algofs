@@ -8,6 +8,7 @@ from util import (
     application_state,
     big_endian,
     Player,
+    btoi,
     itob16,
     btoi16,
     itob32,
@@ -32,15 +33,20 @@ class FileRecord(DataBlock):
     def __init__(self, name, data=None, app_id=None):
         if not data and not app_id:
             raise Exception("Please specify app_id or data")
+        if data:
+            self.data = data
         pass
 
+    
     def to_bytes(self):
         # FILE_RECORD_TYPE_LITERAL:
-        # <0x00> <NAME_LEN(2)> <NAME> <DATA_LEN(4)> <DATA>
+        # <0x00> <FLAGS(2)> <NAME_LEN(2)> <NAME> <DATA_LEN(4)> <DATA>
         # FILE_RECORD_TYPE_REFERENCE:
-        # <0x01> <NAME_LEN(2)> <NAME> <REFERENCE(8)>
+        # <0x01> <FLAGS(2)> <NAME_LEN(2)> <NAME> <REFERENCE(8)>
+        # FLAGS:
+        # <RESERVED(1)> [bits0-5 reserved] <TRUSTED[6]><DIRECTORY[7]>
         return (
-            bytes([0])
+            bytes([0,0,0])
             + itob16(len(self.name))
             + self.name
             + itob16(len(self.data))
@@ -54,21 +60,23 @@ class FileRecord(DataBlock):
             buf += byte_chunk
             while True:
                 offset = 0
-                try:
+                try: 
                     if buf[0] == FileRecord.FILE_RECORD_TYPE_LITERAL:
-                        name_offset = btoi16(buf[1:3]) + 3
+                        flags = buf[1:3]
+                        if flags[1] & 0x03:
+                            # Trusted directory
+
+                        name_offset = btoi16(buf[3:5]) + 5
                         name = str(buf[3:name_offset])
-                        offset = (
-                            btoi32(buf[name_offset : name_offset + 4]) + name_offset
-                        )
+                        offset = btoi32(buf[name_offset : name_offset + 4]) + name_offset
                         data = str(buf[name_offset:offset])
                         yield FileRecord(name, data)  # name, data, bytes_read
                     elif buf[0] == FileRecord.FILE_RECORD_TYPE_REFERENCE:
-                        name_offset = btoi16(buf[1:3]) + 3
+                        name_offset = btoi16(buf[3:5]) + 5
                         name = str(buf[3:name_offset])
                         offset = buf[name_offset : name_offset + 4] + name_offset
                         app_id = btoi(buf[name_offset:offset])
-                        yield FileRecord(name, app_id=app_id)
+                        yield FileRecord(name, app_id=app_id, load_references=load_references)
                     else:
                         raise FileRecordException(
                             f"Invalid Data at byte index {byte_index}"
@@ -77,8 +85,6 @@ class FileRecord(DataBlock):
                     buf = buf[offset:]
                 except IndexError:
                     if len(buf) > FileRecord.FILE_RECORD_MAX_SIZE:
-                        raise FileRecordException(
-                            f"Can't find end of file record, gave up at byte {byte_index}"
-                        )
+                        raise FileRecordException("Can't find end of file record, gave up at byte {byte_index}")
                     # load more data
                     break

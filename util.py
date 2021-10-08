@@ -137,7 +137,7 @@ class Player(object):
         self.indexer = indexer.IndexerClient(indexer_token, indexer_url)
         self.algod = algod.AlgodClient(algod_token, algod_url)
         self.params = self.algod.suggested_params()
-        self.params.last = self.algod.ledger_supply()["current_round"] + 1000
+        self.params.last = self.algod.ledger_supply()["current_round"] + 100
         self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
         self.params.fee = 1000
         self.params.flat_fee = True
