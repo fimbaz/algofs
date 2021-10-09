@@ -313,7 +313,7 @@ def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False, txid=Fa
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 12 * queue_level:
+        while len(active_groups) > 8 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
             application_txns.append(active_group[1])
@@ -485,6 +485,9 @@ if __name__ == "__main__":
     if args["write"]:
         allocator = AccountAllocator(player)
         file_obj = open(args["<file>"], "rb")
+        file_size = os.path.getsize(args["<file>"])
+        blocks_tot = file_size/DataBlock.MAX_BLOCK_SIZE
+        
         algod = algodclient.AlgodClient(
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
