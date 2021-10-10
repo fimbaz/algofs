@@ -75,31 +75,33 @@ class DataBlock(object):
         self.account = account
 
     def burn(self, player, account=None, sync=False, sign=True, send=True):
-        self.account = account if not self.account else self.account
-        player.params.first = self.algod.ledger_supply()["current_round"]
-        player.params.last = player.params.first + 100
-        txn = transaction.ApplicationCreateTxn(
-            player.hot_account if not self.account else self.account,
-            player.params,
-            approval_program=base64.b64decode(self.program_data[0]),
-            clear_program=base64.b64decode(self.program_data[1]),
-            on_complete=transaction.OnComplete.NoOpOC,
-            global_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
-            local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
-            extra_pages=3,
-        )
-        if not sign:
-            return txn
-        signed_txn = player.wallet.sign_transaction(txn)
-        if not send:
-            return signed_txn
         while True:
+            self.account = account if not self.account else self.account
+            player.params.first = self.algod.ledger_supply()["current_round"]
+            player.params.last = player.params.first + 100
+            txn = transaction.ApplicationCreateTxn(
+                player.hot_account if not self.account else self.account,
+                player.params,
+                approval_program=base64.b64decode(self.program_data[0]),
+                clear_program=base64.b64decode(self.program_data[1]),
+                on_complete=transaction.OnComplete.NoOpOC,
+                global_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
+                local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
+                extra_pages=3,
+            )
+            if not sign:
+                return txn
+            signed_txn = player.wallet.sign_transaction(txn)
+            if not send:
+                return signed_txn
             try:
                 self.txn_result = player.algod.send_transaction(signed_txn)
                 break
             except algosdk.error.AlgodHTTPError as e:
+                message = json.loads(str(e))["message"]
                 print("retry", file=sys.stderr)
-                if "TransactionPool.Remember: fee" in json.loads(str(e))["message"]:
+                print(message)
+                if "TransactionPool.Remember: fee" in  message or "txn dead" in message:
                     gevent.sleep(10)
                 else:
                     raise e
@@ -295,11 +297,24 @@ def _commit_txn(player, txn, blocks=False, sync=True):
             txn if blocks else app_id
         )  # result['application-index'] if 'application-index' in result else None
     else:
-        signed_txn = player.wallet.sign_transaction(txn)
-        txid = player.algod.send_transaction(signed_txn)
-        result = wait_for_confirmation(
-            player.algod, txid
-        )  # wait for funding txns to happen
+        while True:
+            try:
+                txn.first_valid_round = player.algod.ledger_supply()["current_round"]
+                txn.last_valid_round = player.params.first + 100
+                signed_txn = player.wallet.sign_transaction(txn)
+                txid = player.algod.send_transaction(signed_txn)
+                result = wait_for_confirmation(
+                    player.algod, txid
+                )  # wait for funding txns to happen
+                break
+            except algosdk.error.AlgodHTTPError as e:
+                message = json.loads(str(e))["message"]
+                print("retry", file=sys.stderr)
+                print(message)
+                if "TransactionPool.Remember: fee" in  message or "txn dead" in message:
+                    gevent.sleep(10)
+                else:
+                    raise e
         return
 
 
@@ -487,7 +502,6 @@ if __name__ == "__main__":
         file_obj = open(args["<file>"], "rb")
         file_size = os.path.getsize(args["<file>"])
         blocks_tot = file_size/DataBlock.MAX_BLOCK_SIZE
-        
         algod = algodclient.AlgodClient(
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
