@@ -101,7 +101,7 @@ class DataBlock(object):
                 message = json.loads(str(e))["message"]
                 print("retry", file=sys.stderr)
                 print(message)
-                if "TransactionPool.Remember: fee" in  message or "txn dead" in message:
+                if "TransactionPool.Remember: fee" in message or "txn dead" in message:
                     gevent.sleep(10)
                 else:
                     raise e
@@ -311,7 +311,7 @@ def _commit_txn(player, txn, blocks=False, sync=True):
                 message = json.loads(str(e))["message"]
                 print("retry", file=sys.stderr)
                 print(message)
-                if "TransactionPool.Remember: fee" in  message or "txn dead" in message:
+                if "TransactionPool.Remember: fee" in message or "txn dead" in message:
                     gevent.sleep(10)
                 else:
                     raise e
@@ -396,17 +396,33 @@ def expand_one_indexblock(player, block):
     return [DataBlock(algod=player.algod, app_id=app_id) for app_id in app_ids]
 
 
-def expand_one_indexblock_iter(player, block):
-    for i in range(0, len(block.data), 8):
-        yield DataBlock(algod=player.algod, app_id=btoi(block.data[i : i + 8]))
+def expand_one_indexblock_iter(player, block, indexes):
+    contains_datablocks = False
+    first_indexed_block = DataBlock(
+        algod=player.algod, app_id=btoi(block.data[0:8]), load=True
+    )
+    if first_indexed_block.block_type == DataBlock.BLOCK_TYPE_DATA:
+        contains_datablocks = True
+    yield first_indexed_block
+    for i in range(8, len(block.data), 8):
+        indexed_block = DataBlock(
+            algod=player.algod,
+            app_id=btoi(block.data[i : i + 8]),
+            load=(not (contains_datablocks and indexes)),
+        )
+        yield indexed_block
 
 
-def expand_indexblock_iter(player, block):
-    if block.block_type == DataBlock.BLOCK_TYPE_DATA:
+def expand_indexblock_iter(player, block, indexes=False):
+    if block.block_type == DataBlock.BLOCK_TYPE_DATA or block.block_type == None:
         yield block
     if block.block_type == DataBlock.BLOCK_TYPE_INDEX:
-        for some_block in expand_one_indexblock_iter(player, block):
-            for data_block in expand_indexblock_iter(player, some_block):
+        if indexes:
+            yield block
+        for some_block in expand_one_indexblock_iter(player, block, indexes):
+            for data_block in expand_indexblock_iter(
+                player, some_block, indexes=indexes
+            ):
                 yield data_block
 
 
@@ -449,7 +465,7 @@ if __name__ == "__main__":
     block.py write-index <file>
     block.py write-indexed <file>
     block.py show-pending
-    block.py read-indexed <app-id>
+    block.py read-indexed <app-id> [--app-ids]
     block.py delete <file>
     block.py format
 """
@@ -481,9 +497,14 @@ if __name__ == "__main__":
         )
     if args["read-indexed"]:
         for block in expand_indexblock_iter(
-            player, DataBlock(player.algod, app_id=int(args["<app-id>"]))
+            player,
+            DataBlock(player.algod, app_id=int(args["<app-id>"])),
+            indexes=args["--app-ids"],
         ):
-            sys.stdout.buffer.write(block.data)
+            if args["--app-ids"]:
+                print(str(block.app_id))
+            else:
+                sys.stdout.buffer.write(block.data)
 
     if args["show-pending"]:
         txns = player.algod.pending_transactions()
@@ -501,7 +522,7 @@ if __name__ == "__main__":
         allocator = AccountAllocator(player)
         file_obj = open(args["<file>"], "rb")
         file_size = os.path.getsize(args["<file>"])
-        blocks_tot = file_size/DataBlock.MAX_BLOCK_SIZE
+        blocks_tot = file_size / DataBlock.MAX_BLOCK_SIZE
         algod = algodclient.AlgodClient(
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
