@@ -17,6 +17,7 @@ from util import (
     flatten,
     btoi,
     itob,
+    compress_ranges
 )
 from collections import deque
 from algosdk.v2client import algod as algodclient
@@ -465,7 +466,7 @@ if __name__ == "__main__":
     block.py write-index <file>
     block.py write-indexed <file>
     block.py show-pending
-    block.py read-indexed <app-id> [--app-ids]
+    block.py read-indexed <app-id> [--app-ids] [--ranges]
     block.py delete <file>
     block.py format
 """
@@ -496,16 +497,21 @@ if __name__ == "__main__":
             )[0].app_id
         )
     if args["read-indexed"]:
+        app_ids = []
         for block in expand_indexblock_iter(
             player,
             DataBlock(player.algod, app_id=int(args["<app-id>"])),
-            indexes=args["--app-ids"],
+            indexes=(args["--app-ids"] or args["--ranges"]),
         ):
             if args["--app-ids"]:
                 print(str(block.app_id))
+            elif args["--ranges"]:
+                app_ids.append(block.app_id)
             else:
                 sys.stdout.buffer.write(block.data)
-
+        if args["--ranges"]:
+            for block_range in [*compress_ranges(iter(sorted(app_ids)))]:
+                print(f"{block_range[0]} {block_range[1]}")
     if args["show-pending"]:
         txns = player.algod.pending_transactions()
         print(txns)

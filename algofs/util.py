@@ -141,3 +141,16 @@ class Player(object):
         self.wallet = Wallet(wallet_name, wallet_password, self.kmd)
         self.params.fee = 1000
         self.params.flat_fee = True
+
+
+def compress_ranges(sorted_list_of_ints_iter):
+    head = next(sorted_list_of_ints_iter)
+    tail = head
+    for integer in sorted_list_of_ints_iter:
+        if integer == tail + 1:
+            tail = integer
+        else:
+            yield (head,tail)
+            head = integer
+            tail = integer
+            
