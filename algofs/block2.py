@@ -202,6 +202,11 @@ def data_to_blocks(player, data_iter, block_type=DataBlock.BLOCK_TYPE_DATA):
         yield DataBlock(player.algod, block_type=block_type, data=block)
 
 
+def list_all_applications(player):
+    for key in player.wallet.list_keys():
+        info = player.algod.account_info(key)
+        for app in info['created-apps']:
+            yield app['id']
 def list_keys_forever(player, start_with_current=False):
     if start_with_current:
         initial_keys = player.wallet.list_keys()
@@ -466,7 +471,7 @@ if __name__ == "__main__":
     block.py write-index <file>
     block.py write-indexed <file>
     block.py show-pending
-    block.py read-indexed <app-id> [--app-ids] [--ranges]
+    block.py read-indexed [<app-id>] [--app-ids] [--ranges]
     block.py delete <file>
     block.py format
 """
@@ -498,6 +503,10 @@ if __name__ == "__main__":
         )
     if args["read-indexed"]:
         app_ids = []
+        if args["--app-ids"] and not args["<app-id>"]:
+            for app_id in list_all_applications(player):
+                print(app_id,flush=True)
+            exit(0)
         for block in expand_indexblock_iter(
             player,
             DataBlock(player.algod, app_id=int(args["<app-id>"])),
@@ -524,6 +533,9 @@ if __name__ == "__main__":
             )[0].app_id
         )
 
+    if args["format"]:
+        print(list_all_applications(player))
+                
     if args["write"]:
         allocator = AccountAllocator(player)
         file_obj = open(args["<file>"], "rb")
