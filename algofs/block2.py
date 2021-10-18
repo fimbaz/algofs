@@ -17,7 +17,7 @@ from util import (
     flatten,
     btoi,
     itob,
-    compress_ranges
+    compress_ranges,
 )
 from collections import deque
 from algosdk.v2client import algod as algodclient
@@ -205,8 +205,10 @@ def data_to_blocks(player, data_iter, block_type=DataBlock.BLOCK_TYPE_DATA):
 def list_all_applications(player):
     for key in player.wallet.list_keys():
         info = player.algod.account_info(key)
-        for app in info['created-apps']:
-            yield app['id']
+        for app in info["created-apps"]:
+            yield app["id"]
+
+
 def list_keys_forever(player, start_with_current=False):
     if start_with_current:
         initial_keys = player.wallet.list_keys()
@@ -216,6 +218,12 @@ def list_keys_forever(player, start_with_current=False):
         yield key
     while True:
         yield player.wallet.generate_key()
+
+
+def delete_applications(player, application_and_account):
+    for app, account in application_and_account:
+        account = player.algod.application_info(int(app_id))["params"]["creator"]
+        yield transaction.ApplicationDeleteTxn(account, player.params, app)
 
 
 class AccountAllocator:
@@ -449,6 +457,14 @@ def expand_indexblock(player, block):
         return [block]
 
 
+def format_wallet(player, fs_roots):
+    for root in fs_root:
+        for block in expand_indexblock_iter(
+            player, DataBlock(player.algod, app_id=root), indexes=True
+        ):
+            print(str(block.app_id))
+
+
 if __name__ == "__main__":
     import os
 
@@ -505,7 +521,7 @@ if __name__ == "__main__":
         app_ids = []
         if args["--app-ids"] and not args["<app-id>"]:
             for app_id in list_all_applications(player):
-                print(app_id,flush=True)
+                print(app_id, flush=True)
             exit(0)
         for block in expand_indexblock_iter(
             player,
@@ -534,8 +550,8 @@ if __name__ == "__main__":
         )
 
     if args["format"]:
-        print(list_all_applications(player))
-                
+        pass
+
     if args["write"]:
         allocator = AccountAllocator(player)
         file_obj = open(args["<file>"], "rb")
