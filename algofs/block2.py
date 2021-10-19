@@ -3,6 +3,7 @@ from gevent import monkey
 
 monkey.patch_all()
 import itertools
+from blist import sortedlist
 from algosdk.future import transaction
 from disas import program_scratch
 from pyteal import *
@@ -223,7 +224,10 @@ def list_keys_forever(player, start_with_current=False):
 def delete_applications(player, application_and_account):
     for app, account in application_and_account:
         account = player.algod.application_info(int(app_id))["params"]["creator"]
-        yield transaction.ApplicationDeleteTxn(account, player.params, app)
+        txn = transaction.ApplicationDeleteTxn(account, player.params, app)
+        signed_txn = player.wallet.sign_transaction(txn)
+        txid = player.algod.send_transaction(signed_txn)
+        yield txid
 
 
 class AccountAllocator:
@@ -457,12 +461,18 @@ def expand_indexblock(player, block):
         return [block]
 
 
-def format_wallet(player, fs_roots):
-    for root in fs_root:
+def deletable_blocks_iter(player, fs_roots, fresh=True):
+    blocks_to_save = sortedlist()
+    for root in fs_roots:
         for block in expand_indexblock_iter(
             player, DataBlock(player.algod, app_id=root), indexes=True
         ):
-            print(str(block.app_id))
+            blocks_to_save.add(block.app_id)
+    for app in list_all_applications(player):
+        if blocks_to_save.count(app) == 0:
+            yield app
+        else:
+            blocks_to_save.discard(app)  # since we won't see the same block twice
 
 
 if __name__ == "__main__":
@@ -489,7 +499,7 @@ if __name__ == "__main__":
     block.py show-pending
     block.py read-indexed [<app-id>] [--app-ids] [--ranges]
     block.py delete <file>
-    block.py format
+    block.py format <file>
 """
     )
     if args["readappids"]:
@@ -550,7 +560,10 @@ if __name__ == "__main__":
         )
 
     if args["format"]:
-        pass
+        file_obj = open(args["<file>"], "r")
+        app_ids = [int(x.split(" ")[-1]) for x in file_obj.readlines()]
+        for block in deletable_blocks_iter(player, app_ids):
+            print(block, flush=True)
 
     if args["write"]:
         allocator = AccountAllocator(player)
