@@ -222,11 +222,21 @@ def list_keys_forever(player, start_with_current=False):
 
 
 def delete_applications(player, application_and_account):
-    for app, account in application_and_account:
-        account = player.algod.application_info(int(app_id))["params"]["creator"]
+    for app in application_and_account:
+        account = player.algod.application_info(app)["params"]["creator"]
         txn = transaction.ApplicationDeleteTxn(account, player.params, app)
-        signed_txn = player.wallet.sign_transaction(txn)
-        txid = player.algod.send_transaction(signed_txn)
+        txn.first_valid_round = player.algod.ledger_supply()["current_round"]
+        txn.last_valid_round = txn.first_valid_round + 100
+        try:
+            signed_txn = player.wallet.sign_transaction(txn)
+            txid = player.algod.send_transaction(signed_txn)
+        except algosdk.error.AlgodHTTPError as e:
+            message = json.loads(str(e))["message"]
+            if "TransactionPool.Remember: fee" in message or "txn dead" in message:
+                print("retry", file=sys.stderr)
+                print(message)
+            else:
+                raise e
         yield txid
 
 
@@ -346,12 +356,12 @@ def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False, txid=Fa
             active_groups.append([next(commit_batch), commit_batch])
         else:
             queue_level = 0
-        while len(active_groups) > 8 * queue_level:
+        while len(active_groups) > 50 * queue_level:
             active_group = active_groups.popleft()
             gevent.joinall([active_group[0]])[0].value
-            application_txns.append(active_group[1])
-        while len(application_txns) > 2 * queue_level:
-            group = next(application_txns.popleft())
+            application_txns.append(next(active_group[1]))
+        while len(application_txns) > 25 * queue_level:
+            group = application_txns.popleft()
             finished_group = gevent.joinall(group)
             for job in group:
                 if job.value is not None:
@@ -500,6 +510,7 @@ if __name__ == "__main__":
     block.py read-indexed [<app-id>] [--app-ids] [--ranges]
     block.py delete <file>
     block.py format <file>
+    block.py refund
 """
     )
     if args["readappids"]:
@@ -559,11 +570,36 @@ if __name__ == "__main__":
             )[0].app_id
         )
 
+    if args["refund"]:
+        for key in player.wallet.list_keys():
+            info = player.algod.account_info(key)
+            try:
+                player.params.first_valid_round = player.algod.ledger_supply()["current_round"]
+                player.params.last_valid_round = player.params.first_valid_round + 100
+                if len(info["created-apps"]) == 0 and info["amount"] > 0:
+                    print(player.algod.send_transaction(player.wallet.sign_transaction(transaction.PaymentTxn(
+                        key,
+                        player.params,
+                        player.hot_account,
+                        0,
+                        close_remainder_to=player.hot_account,
+                    ))))
+                elif info["amount"] == 0 and len(info["created-apps"]) == 0:
+                    player.wallet.delete_key(key)
+                    print(f"{key}",flush=True)
+            except algosdk.error.AlgodHTTPError as e:
+                message = json.loads(str(e))["message"]
+                print("retry", file=sys.stderr)
+                print(message)
+                if "TransactionPool.Remember: fee" in message or "txn dead" in message:
+                    continue
+                else:
+                    raise e
     if args["format"]:
         file_obj = open(args["<file>"], "r")
         app_ids = [int(x.split(" ")[-1]) for x in file_obj.readlines()]
-        for block in deletable_blocks_iter(player, app_ids):
-            print(block, flush=True)
+        for txid in delete_applications(player,deletable_blocks_iter(player, app_ids)):
+            print(txid, flush=True)
 
     if args["write"]:
         allocator = AccountAllocator(player)
