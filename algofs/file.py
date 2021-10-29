@@ -41,11 +41,12 @@ class FileRecord(DataBlock):
         # <0x01> <FLAGS(2)> <NAME_LEN(2)> <NAME> <REFERENCE(8)>
         # FLAGS:
         # <RESERVED(1)> [bits0-5 reserved] <TRUSTED[6]><DIRECTORY[7]>
+        bin_name = self.name.encode('utf-8')        
         return (
             bytes([0, 0, 0])
-            + itob16(len(self.name))
-            + self.name.encode('utf-8')
-            + itob16(len(self.data))
+            + itob16(len(bin_name))
+            + bin_name
+            + itob32(len(self.data))
             + self.data
         )
 
@@ -62,11 +63,13 @@ class FileRecord(DataBlock):
                             pass
                             # Trusted directory
                         name_offset = btoi16(buf[3:5]) + 5
-                        name = str(buf[5:name_offset].decode("utf-8"))
+                        name = buf[5:name_offset]
+                        data_length = btoi32(buf[name_offset : name_offset + 4])
+                        print(data_length)
                         offset = (
-                            btoi32(buf[name_offset : name_offset + 4]) + name_offset + 4
+                            data_length + name_offset + 4
                         )
-                        data = buf[name_offset:offset]
+                        data = buf[name_offset + 4:offset]
                         yield FileRecord(name, data)  # name, data, bytes_read
                     elif buf[0] == FileRecord.FILE_RECORD_TYPE_REFERENCE:
                         name_offset = btoi16(buf[3:5]) + 5
@@ -93,7 +96,7 @@ class FileRecord(DataBlock):
 if __name__ == "__main__":
     records = [
         *FileRecord.from_bytes(
-            [
+            [b"".join([
                 FileRecord(
                     name="file.txt",
                     data=b"Hello mother, hello father, hello world at, Glasgow",
@@ -102,7 +105,7 @@ if __name__ == "__main__":
                     name="buff_fun_with_greb_and_bilby.txt",
                     data=b"This is where I would put my blog!",
                 ).to_bytes(),
-            ]
+            ])]
         )
     ]
     for record in records:
