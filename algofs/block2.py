@@ -3,6 +3,7 @@ from gevent import monkey
 
 monkey.patch_all()
 import itertools
+import re
 from blist import sortedlist
 from algosdk.future import transaction
 from disas import program_scratch
@@ -506,6 +507,7 @@ if __name__ == "__main__":
     block.py write <file> [--txids]
     block.py write-index <file>
     block.py write-indexed <file>
+    block.py write-files <root>
     block.py show-pending
     block.py read-indexed [<app-id>] [--app-ids] [--ranges]
     block.py delete <file>
@@ -517,6 +519,20 @@ if __name__ == "__main__":
         datafile = open(args["<file>"], "rb")
         for line in datafile.readlines():
             sys.stdout.buffer.write(DataBlock(player.algod, app_id=int(line)).data)
+
+    if args["write-files"]:
+        from algofile import FileRecord
+
+        root = args["<root>"]
+        if os.path.exists(root + "/.algofsignore"):
+            regexes = [*open(root + "/.algofsignore").readlines()]
+        else:
+            regexes = []
+        for root, dirs, files in os.walk(args["<root>"]):
+            for f in files:
+                if not any([re.match(regex, f) for regex in regexes]):
+                    print(os.path.join(root, f))
+        exit(0)
 
     if args["write-indexed"]:
         allocator = AccountAllocator(player)
@@ -574,19 +590,27 @@ if __name__ == "__main__":
         for key in player.wallet.list_keys():
             info = player.algod.account_info(key)
             try:
-                player.params.first_valid_round = player.algod.ledger_supply()["current_round"]
+                player.params.first_valid_round = player.algod.ledger_supply()[
+                    "current_round"
+                ]
                 player.params.last_valid_round = player.params.first_valid_round + 100
                 if len(info["created-apps"]) == 0 and info["amount"] > 0:
-                    print(player.algod.send_transaction(player.wallet.sign_transaction(transaction.PaymentTxn(
-                        key,
-                        player.params,
-                        player.hot_account,
-                        0,
-                        close_remainder_to=player.hot_account,
-                    ))))
+                    print(
+                        player.algod.send_transaction(
+                            player.wallet.sign_transaction(
+                                transaction.PaymentTxn(
+                                    key,
+                                    player.params,
+                                    player.hot_account,
+                                    0,
+                                    close_remainder_to=player.hot_account,
+                                )
+                            )
+                        )
+                    )
                 elif info["amount"] == 0 and len(info["created-apps"]) == 0:
                     player.wallet.delete_key(key)
-                    print(f"{key}",flush=True)
+                    print(f"{key}", flush=True)
             except algosdk.error.AlgodHTTPError as e:
                 message = json.loads(str(e))["message"]
                 print("retry", file=sys.stderr)
@@ -598,7 +622,7 @@ if __name__ == "__main__":
     if args["format"]:
         file_obj = open(args["<file>"], "r")
         app_ids = [int(x.split(" ")[-1]) for x in file_obj.readlines()]
-        for txid in delete_applications(player,deletable_blocks_iter(player, app_ids)):
+        for txid in delete_applications(player, deletable_blocks_iter(player, app_ids)):
             print(txid, flush=True)
 
     if args["write"]:

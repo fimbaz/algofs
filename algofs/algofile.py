@@ -20,7 +20,7 @@ from docopt import docopt
 from block2 import DataBlock
 
 
-class FileRecord(DataBlock):
+class FileRecord():
     FILE_RECORD_TYPE_LITERAL = 0x00
     FILE_RECORD_TYPE_REFERENCE = 0x01
     FILE_RECORD_MAX_SIZE = 100000
@@ -65,7 +65,6 @@ class FileRecord(DataBlock):
                         name_offset = btoi16(buf[3:5]) + 5
                         name = buf[5:name_offset]
                         data_length = btoi32(buf[name_offset : name_offset + 4])
-                        print(data_length)
                         offset = (
                             data_length + name_offset + 4
                         )
