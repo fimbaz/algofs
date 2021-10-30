@@ -25,6 +25,7 @@ class FileRecord():
     FILE_RECORD_TYPE_REFERENCE = 0x01
     FILE_RECORD_MAX_SIZE = 100000
 
+    
     def __init__(self, name, data=None, app_id=None):
         if app_id:
             pass  # TODO

@@ -186,6 +186,20 @@ APP_DEPOSIT = 2000000
 MAX_BLOCK_SIZE = 7000
 
 
+def chunked_bytes(bytes_iter, buf_size):
+    buf = bytearray()
+    for chunk in bytes_iter:
+        while chunk:
+            if len(buf) == buf_size:
+                yield buf
+                buf = bytearray()
+            left_in_buf = buf_size - len(buf)
+            if left_in_buf > 0:
+                buf += chunk[0:left_in_buf]
+                chunk = chunk[left_in_buf:]
+    yield buf
+
+
 def chunked_file(file_obj, chunk_size):
     while True:
         data = file_obj.read(chunk_size)
@@ -486,6 +500,29 @@ def deletable_blocks_iter(player, fs_roots, fresh=True):
             blocks_to_save.discard(app)  # since we won't see the same block twice
 
 
+def write_indexed(player, allocator, chunk_iter):
+    return index_up_datablocks(
+        player,
+        allocator,
+        commit_txns_for_accounts(
+            player,
+            allocator.allocate_storage(data_to_blocks(player, chunk_iter)),
+        ),
+    )[0].app_id
+
+
+def local_files_iter(player, allocator, root):
+    if os.path.exists(root + "/.algofsignore"):
+        regexes = [*open(root + "/.algofsignore").readlines()]
+    else:
+        regexes = []
+    for root, dirs, files in os.walk(root):
+        for filename in files:
+            f = os.path.join(root, filename)
+            if not any([re.match(regex, f) for regex in regexes]):
+                yield FileRecord(f, data=open(f, "rb").read()).to_bytes()
+
+
 if __name__ == "__main__":
     import os
 
@@ -524,15 +561,19 @@ if __name__ == "__main__":
         from algofile import FileRecord
 
         root = args["<root>"]
-        if os.path.exists(root + "/.algofsignore"):
-            regexes = [*open(root + "/.algofsignore").readlines()]
-        else:
-            regexes = []
-        for root, dirs, files in os.walk(args["<root>"]):
-            for f in files:
-                if not any([re.match(regex, f) for regex in regexes]):
-                    print(os.path.join(root, f))
-        exit(0)
+        allocator = AccountAllocator(player)
+        algod = algodclient.AlgodClient(
+            os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
+        )
+        print(
+            write_indexed(
+                player,
+                allocator,
+                chunked_file(
+                    local_files_iter(player, allocator, root), DataBlock.MAX_BLOCK_SIZE
+                ),
+            )
+        )
 
     if args["write-indexed"]:
         allocator = AccountAllocator(player)
@@ -540,19 +581,11 @@ if __name__ == "__main__":
         algod = algodclient.AlgodClient(
             os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
         )
+
         print(
-            index_up_datablocks(
-                player,
-                allocator,
-                commit_txns_for_accounts(
-                    player,
-                    allocator.allocate_storage(
-                        data_to_blocks(
-                            player, chunked_file(file_obj, DataBlock.MAX_BLOCK_SIZE)
-                        )
-                    ),
-                ),
-            )[0].app_id
+            write_indexed(
+                player, allocator, chunked_file(file_obj, DataBlock.MAX_BLOCK_SIZE)
+            )
         )
     if args["read-indexed"]:
         app_ids = []
