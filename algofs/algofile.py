@@ -65,7 +65,7 @@ class FileRecord:
 
     def from_bytes(byte_chunk_iter, load_references=False):
         buf = bytearray()
-        byte_index, offset = 0, 0
+        byte_index, next_record_start = 0, 0
         for byte_chunk in byte_chunk_iter:
             buf += byte_chunk
             while buf:
@@ -75,25 +75,34 @@ class FileRecord:
                         if flags[1] & 0x03:
                             pass
                             # Trusted directory
-                        name_offset = btoi16(buf[3:5]) + 5
-                        name = buf[5:name_offset]
-                        data_length = btoi32(buf[name_offset : name_offset + 4])
-                        offset = data_length + name_offset + 4
-                        data = buf[name_offset + 4 : offset]
-                        yield FileRecord(name.decode('utf-8'), data)  # name, data, bytes_read
+                        name_end = btoi16(buf[3:5]) + 5
+                        name = buf[5:name_end]
+                        data_length = btoi32(buf[name_end : name_end + 4])
+                        data_start = name_end + 4
+                        data_end = data_start + data_length
+                        buf[data_end - 1] # force exception
+                        data = buf[data_start:data_end]
+                        next_record_start = data_end
+                        yield FileRecord(
+                            name.decode("utf-8"), data
+                        )  # name, data, bytes_read
                     elif buf[0] == FileRecord.FILE_RECORD_TYPE_REFERENCE:
                         name_offset = btoi16(buf[3:5]) + 5
                         name = str(buf[3:name_offset])
-                        offset = buf[name_offset : name_offset + 4] + name_offset
-                        app_id = btoi(buf[name_offset:offset])
+                        next_record_start = (
+                            buf[name_offset : name_offset + 4] + name_offset
+                        )
+                        app_id = btoi(buf[name_offset:next_record_start])
                         yield FileRecord(
-                            name=name.encode('utf-8'), app_id=app_id, load_references=load_references
+                            name=name.decode("utf-8"),
+                            app_id=app_id,
+                            load_references=load_references,
                         )
                     else:
                         raise Exception(f"Invalid Data at byte index {byte_index}")
-                    byte_index += offset
-                    buf = buf[offset:]
-                    offset = 0
+                    byte_index += next_record_start
+                    buf = buf[next_record_start:]
+                    next_record_start = 0
                 except IndexError:
                     if len(buf) > FileRecord.FILE_RECORD_MAX_SIZE:
                         raise Exception(
