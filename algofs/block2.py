@@ -545,8 +545,9 @@ if __name__ == "__main__":
     block.py write-index <file>
     block.py write-indexed <file>
     block.py write-files <root>
+    block.py read-files <app-id> [<root>]
     block.py show-pending
-    block.py read-indexed [<app-id>] [--app-ids] [--ranges]
+    block.py read-indexed <app-id> [--app-ids] [--ranges]
     block.py delete <file>
     block.py format <file>
     block.py refund
@@ -556,7 +557,28 @@ if __name__ == "__main__":
         datafile = open(args["<file>"], "rb")
         for line in datafile.readlines():
             sys.stdout.buffer.write(DataBlock(player.algod, app_id=int(line)).data)
+    if args["read-files"]:
+        from algofile import FileRecord
 
+        root = args["<root>"] if args["<root>"] else "./"
+        allocator = AccountAllocator(player)
+        algod = algodclient.AlgodClient(
+            os.environ["ALGOD_TOKEN"], os.environ["ALGOD_URL"]
+        )
+
+        def bytes_from_block(block_iter):
+            for block in block_iter:
+                yield block.data
+
+        for file_record in FileRecord.from_bytes(
+            bytes_from_block(
+                expand_indexblock_iter(
+                    player,
+                    DataBlock(player.algod, app_id=int(args["<app-id>"])),
+                )
+            )
+        ):
+            file_record.write_to_fs(root)
     if args["write-files"]:
         from algofile import FileRecord
 
