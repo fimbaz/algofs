@@ -519,7 +519,7 @@ def local_files_iter(player, allocator, root):
     for root, dirs, files in os.walk(root):
         for filename in files:
             f = os.path.join(root, filename)
-            if not any([re.search(regex, f) for regex in regexes]):
+            if not any([re.search(regex.strip(), f) for regex in regexes]):
                 yield FileRecord(f, data=open(f, "rb").read()).to_bytes()
 
 

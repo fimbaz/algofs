@@ -25,7 +25,7 @@ from block2 import DataBlock
 class FileRecord:
     FILE_RECORD_TYPE_LITERAL = 0x00
     FILE_RECORD_TYPE_REFERENCE = 0x01
-    FILE_RECORD_MAX_SIZE = 100000
+    FILE_RECORD_MAX_SIZE = 100000000
 
     def __init__(self, name, data=None, app_id=None):
         if app_id:
