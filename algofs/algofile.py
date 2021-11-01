@@ -51,9 +51,8 @@ class FileRecord:
         # FILE_RECORD_TYPE_LITERAL:
         # <0x00> <FLAGS(2)> <NAME_LEN(2)> <NAME> <DATA_LEN(4)> <DATA>
         # FILE_RECORD_TYPE_REFERENCE:
-        # <0x01> <FLAGS(2)> <NAME_LEN(2)> <NAME> <REFERENCE(8)>
-        # FLAGS:
-        # <RESERVED(1)> [bits0-5 reserved] <TRUSTED[6]><DIRECTORY[7]>
+        # <0x01> <FLAGS(2)> <NAME_LEN(2)> <NAME> [SHA256SUM(32)] <REFERENCE(8)>
+        # <RESERVED(1)> [bits0-6 reserved] <SHASUM[7]>
         bin_name = self.name.encode("utf-8")
         return (
             bytes([0, 0, 0])

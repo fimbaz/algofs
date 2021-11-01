@@ -83,8 +83,7 @@ These days, a unit of cryptocurrency is treated like a share in a company.. but 
 
 Just like the fundamental source of value of fiat currency is its ability to pay taxes, the fundamental source of value of a cryptocurrency is its ability to pay transaction fees, which fees have the singular purpose of durably mutating data in a public consensus network.
 
+-
 
-
-
-
-
+a representation of a thing is not the thing itself (data is not physical)
+a link to a representation of a thing is not a representation of a thing (links don't guarantee availability.)

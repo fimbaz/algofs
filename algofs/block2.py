@@ -77,9 +77,10 @@ class DataBlock(object):
         self.app_id = app_id
         self.account = account
 
+        
     def burn(self, player, account=None, sync=False, sign=True, send=True):
         while True:
-            self.account = account if not self.account else self.account
+            self.account = account if not self.account  else self.account
             player.params.first = self.algod.ledger_supply()["current_round"]
             player.params.last = player.params.first + 100
             txn = transaction.ApplicationCreateTxn(
@@ -172,7 +173,32 @@ class DataBlock(object):
         )
         return program
 
-
+def process_txn(player,txn_generator, sync=False, sign=True, send=True):
+    while True:
+        player.params.first = player.algod.ledger_supply()["current_round"]
+        player.params.last = player.params.first + 100
+        txn = txn_generator(player)
+        if not sign:
+            return txn
+        signed_txn = player.wallet.sign_transaction(txn)
+        if not send:
+            return signed_txn
+        try:
+            txn_result = player.algod.send_transaction(signed_txn)
+            break
+        except algosdk.error.AlgodHTTPError as e:
+            message = json.loads(str(e))["message"]
+            print("retry", file=sys.stderr)
+            print(message)
+            if "TransactionPool.Remember: fee" in message or "txn dead" in message:
+                gevent.sleep(10)
+            else:
+                raise e
+        txid = txn_result
+        if sync:
+            return  wait_for_confirmation(player.algod, txn_result)
+    return txn_result
+    
 # 1. a block is read from the stream
 # 2. an account is found for the block to live in
 # 3. if necessary, an account funding txn is created and signed
