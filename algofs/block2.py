@@ -77,13 +77,9 @@ class DataBlock(object):
         self.app_id = app_id
         self.account = account
 
-        
     def burn(self, player, account=None, sync=False, sign=True, send=True):
-        while True:
-            self.account = account if not self.account  else self.account
-            player.params.first = self.algod.ledger_supply()["current_round"]
-            player.params.last = player.params.first + 100
-            txn = transaction.ApplicationCreateTxn(
+        def txn_generator(player):
+            return transaction.ApplicationCreateTxn(
                 player.hot_account if not self.account else self.account,
                 player.params,
                 approval_program=base64.b64decode(self.program_data[0]),
@@ -93,29 +89,12 @@ class DataBlock(object):
                 local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
                 extra_pages=3,
             )
-            if not sign:
-                return txn
-            signed_txn = player.wallet.sign_transaction(txn)
-            if not send:
-                return signed_txn
-            try:
-                self.txn_result = player.algod.send_transaction(signed_txn)
-                break
-            except algosdk.error.AlgodHTTPError as e:
-                message = json.loads(str(e))["message"]
-                print("retry", file=sys.stderr)
-                print(message)
-                if "TransactionPool.Remember: fee" in message or "txn dead" in message:
-                    gevent.sleep(10)
-                else:
-                    raise e
-        self.txid = self.txn_result
+        self.txn_result = process_txn(player, txn_generator, sync, sign, send)
         if sync:
-            self.app_id = wait_for_confirmation(player.algod, self.txn_result)[
-                "application-index"
-            ]
+            self.app_id = self.txn_result["application-index"]
             return self.app_id
-        return self.txn_result
+        else:
+            return self.txn_result
 
     def load_programs(algod, app_id):
         result = application_state(algod, app_id)
@@ -173,7 +152,9 @@ class DataBlock(object):
         )
         return program
 
-def process_txn(player,txn_generator, sync=False, sign=True, send=True):
+
+def process_txn(player, txn_generator, sync=False, sign=True, send=True):
+    txn_result = None
     while True:
         player.params.first = player.algod.ledger_supply()["current_round"]
         player.params.last = player.params.first + 100
@@ -194,11 +175,11 @@ def process_txn(player,txn_generator, sync=False, sign=True, send=True):
                 gevent.sleep(10)
             else:
                 raise e
-        txid = txn_result
-        if sync:
-            return  wait_for_confirmation(player.algod, txn_result)
+    if sync:
+        return wait_for_confirmation(player.algod, txn_result)
     return txn_result
-    
+
+
 # 1. a block is read from the stream
 # 2. an account is found for the block to live in
 # 3. if necessary, an account funding txn is created and signed
@@ -265,20 +246,11 @@ def list_keys_forever(player, start_with_current=False):
 def delete_applications(player, application_and_account):
     for app in application_and_account:
         account = player.algod.application_info(app)["params"]["creator"]
-        txn = transaction.ApplicationDeleteTxn(account, player.params, app)
-        txn.first_valid_round = player.algod.ledger_supply()["current_round"]
-        txn.last_valid_round = txn.first_valid_round + 100
-        try:
-            signed_txn = player.wallet.sign_transaction(txn)
-            txid = player.algod.send_transaction(signed_txn)
-        except algosdk.error.AlgodHTTPError as e:
-            message = json.loads(str(e))["message"]
-            if "TransactionPool.Remember: fee" in message or "txn dead" in message:
-                print("retry", file=sys.stderr)
-                print(message)
-            else:
-                raise e
-        yield txid
+
+        def txn_generator(player):
+            return transaction.ApplicationDeleteTxn(account, player.params, app)
+
+        yield process_txn(player, txn_generator)
 
 
 class AccountAllocator:
@@ -366,25 +338,9 @@ def _commit_txn(player, txn, blocks=False, sync=True):
             txn if blocks else app_id
         )  # result['application-index'] if 'application-index' in result else None
     else:
-        while True:
-            try:
-                txn.first_valid_round = player.algod.ledger_supply()["current_round"]
-                txn.last_valid_round = player.params.first + 100
-                signed_txn = player.wallet.sign_transaction(txn)
-                txid = player.algod.send_transaction(signed_txn)
-                result = wait_for_confirmation(
-                    player.algod, txid
-                )  # wait for funding txns to happen
-                break
-            except algosdk.error.AlgodHTTPError as e:
-                message = json.loads(str(e))["message"]
-                print("retry", file=sys.stderr)
-                print(message)
-                if "TransactionPool.Remember: fee" in message or "txn dead" in message:
-                    gevent.sleep(10)
-                else:
-                    raise e
-        return
+        def txn_generator(player):
+            return txn
+        return process_txn(player, txn_generator, sync=sync, send=True, sign=True)
 
 
 def commit_txns_for_accounts(player, txns_by_account_iter, blocks=False, txid=False):
@@ -431,7 +387,7 @@ def data_from_appids(algod, app_id_iter):
 def index_datablocks(player, burned_block_iter):
     out = bytearray()
     for block in burned_block_iter:
-        out += itob(block.app_id if isinstance(block, DataBlock) else block)
+        out += itob(block.app_id if isinstance(block, DataBlock) else int(block))
         if len(out) >= DataBlock.MAX_BLOCK_SIZE:
             yield DataBlock(
                 player.algod, block_type=DataBlock.BLOCK_TYPE_INDEX, data=out
@@ -670,36 +626,22 @@ if __name__ == "__main__":
     if args["refund"]:
         for key in player.wallet.list_keys():
             info = player.algod.account_info(key)
-            try:
-                player.params.first_valid_round = player.algod.ledger_supply()[
-                    "current_round"
-                ]
-                player.params.last_valid_round = player.params.first_valid_round + 100
-                if len(info["created-apps"]) == 0 and info["amount"] > 0:
-                    print(
-                        player.algod.send_transaction(
-                            player.wallet.sign_transaction(
-                                transaction.PaymentTxn(
-                                    key,
-                                    player.params,
-                                    player.hot_account,
-                                    0,
-                                    close_remainder_to=player.hot_account,
-                                )
-                            )
-                        )
+            if len(info["created-apps"]) == 0 and info["amount"] > 0:
+
+                def txn_generator(player):
+                    transaction.PaymentTxn(
+                        key,
+                        player.params,
+                        player.hot_account,
+                        0,
+                        close_remainder_to=player.hot_account,
                     )
-                elif info["amount"] == 0 and len(info["created-apps"]) == 0:
-                    player.wallet.delete_key(key)
-                    print(f"{key}", flush=True)
-            except algosdk.error.AlgodHTTPError as e:
-                message = json.loads(str(e))["message"]
-                print("retry", file=sys.stderr)
-                print(message)
-                if "TransactionPool.Remember: fee" in message or "txn dead" in message:
-                    continue
-                else:
-                    raise e
+
+                print(process_txn(player, txn_generator))
+
+            elif info["amount"] == 0 and len(info["created-apps"]) == 0:
+                player.wallet.delete_key(key)
+                print(f"{key}", flush=True)
     if args["format"]:
         file_obj = open(args["<file>"], "r")
         app_ids = [int(x.split(" ")[-1]) for x in file_obj.readlines()]
