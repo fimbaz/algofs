@@ -40,10 +40,13 @@ def flatten(items):
 def wait_for_confirmation(client, txid):
     last_round = client.status().get("last-round")
     txinfo = {}
-    while not (txinfo.get("confirmed-round") and txinfo.get("confirmed-round") > 0):
+    
+    while True:
         txinfo = client.pending_transaction_info(txid)
-        gevent.sleep(10)
-    return txinfo
+        if (txinfo.get("confirmed-round") and txinfo.get("confirmed-round") > 0):
+            return txinfo
+        else:
+            gevent.sleep(4)
 
 
 def application_state(algodclient, app_id):

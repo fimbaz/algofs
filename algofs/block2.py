@@ -89,6 +89,7 @@ class DataBlock(object):
                 local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
                 extra_pages=3,
             )
+
         self.txn_result = process_txn(player, txn_generator, sync, sign, send)
         if sync:
             self.app_id = self.txn_result["application-index"]
@@ -338,8 +339,10 @@ def _commit_txn(player, txn, blocks=False, sync=True):
             txn if blocks else app_id
         )  # result['application-index'] if 'application-index' in result else None
     else:
+
         def txn_generator(player):
             return txn
+
         return process_txn(player, txn_generator, sync=sync, send=True, sign=True)
 
 
@@ -498,11 +501,15 @@ def local_files_iter(player, allocator, root):
         regexes = [*open(root + "/.algofsignore").readlines()]
     else:
         regexes = []
-    for root, dirs, files in os.walk(root):
+    for local_root, dirs, files in os.walk(root):
         for filename in files:
-            f = os.path.join(root, filename)
+            f = os.path.join(local_root, filename)
             if not any([re.search(regex.strip(), f) for regex in regexes]):
-                yield FileRecord(f, data=open(f, "rb").read()).to_bytes()
+                filename = f[re.match("^" + root, f).span()[1] :]
+                print(filename)
+                yield FileRecord(
+                    filename, compat=True, data=open(f, "rb").read()
+                ).to_bytes()
 
 
 if __name__ == "__main__":

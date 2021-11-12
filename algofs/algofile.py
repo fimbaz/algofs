@@ -1,3 +1,4 @@
+import re
 from algosdk.future import transaction
 import pathlib
 import os
@@ -27,18 +28,25 @@ class FileRecord:
     FILE_RECORD_TYPE_REFERENCE = 0x01
     FILE_RECORD_MAX_SIZE = 100000000
 
-    def __init__(self, name, data=None, app_id=None):
+    def __init__(self, name, data=None, app_id=None, compat=False):
         if app_id:
             pass  # TODO
-        elif data and name:
+        elif name:  # data can be falsey for an empty file!
             self.data = data
-            self.name = name
+            pathmatch = re.match("(^[/]+|[.][.]+)?(.*)", name).groups()
+            if pathmatch[0] and not compat:
+                raise Exception("Invalid filename, can't start with slash or dot")
+            self.name = pathmatch[
+                1
+            ]  # don't respect names that start with any sequence of './'
+
         else:
             raise Exception("Please specify app_id or data + name")
 
     def write_to_fs(self, root):
         # TODO: make this streaming
         destination_path = os.path.join(root, self.name)
+        print(destination_path)
         dirname = os.path.dirname(destination_path)
         if not os.path.isdir(dirname):
             pathlib.Path(dirname).mkdir(parents=True, exist_ok=True)
@@ -79,7 +87,7 @@ class FileRecord:
                         data_length = btoi32(buf[name_end : name_end + 4])
                         data_start = name_end + 4
                         data_end = data_start + data_length
-                        buf[data_end - 1] # force exception
+                        buf[data_end - 1]  # force exception
                         data = buf[data_start:data_end]
                         next_record_start = data_end
                         yield FileRecord(
