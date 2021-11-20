@@ -16,10 +16,6 @@ def clear_program(player):
     return compiled_program
 
 
-@Subroutine(TealType.uint64)
-def mebs_i(i):
-    return ReSturn(App.globalGetEx(Int(1), i))
-
 
 @Subroutine(TealType.uint64)
 def get_tail():  # returns key index and offset
@@ -27,8 +23,8 @@ def get_tail():  # returns key index and offset
     return Seq(
         [
             i.store(Int(0)),
-            While(App.globalGetEx(Int(1), Itob(i.load())).hasValue()).Do(
-                i.store(i.load() + Int(1))
+            While(App.globalGet(Itob(i.load()))).Do(
+                    i.store(i.load() + Int(1))
             ),
             Return(i.load()),
         ]
