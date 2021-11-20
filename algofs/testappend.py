@@ -5,6 +5,7 @@ from block2 import DataBlock
 from pyteal import *
 from algosdk.future import transaction
 from util import Player, wait_for_confirmation
+from algosdk import account, encoding
 
 
 def clear_program(player):
@@ -13,6 +14,69 @@ def clear_program(player):
         compileTeal(program, Mode.Application, version=4)
     )["result"]
     return compiled_program
+
+
+@Subroutine(TealType.bytes)
+def mebs_i(i):
+    return globalGetEx(Int(1), i)
+
+
+@Subroutine(TealType.uint64)
+def get_tail():  # returns key index and offset
+    i = ScratchVar()
+    return Seq(
+        [
+            i.store(Int(0)),
+            While(
+                mebs_i(i.load()).has_value(),
+            ).Do(i.store(i.load() + Int(1))),
+            Return(i.load()),
+        ]
+    )
+
+
+MAX_GLOB_LEN = 256  # TODO get from consensus
+# ((1 << 16)-1) ((1<<8)-1)
+@Subroutine(TealType.uint64)
+def concat_bytes(b):
+    tail_index = ScratchVar()
+    tail = ScratchVar()
+    stub_len = ScratchVar()
+    bytes_read = ScratchVar()
+    return Seq(
+        [
+            tail_index.store(get_tail()),
+            tail.store(mebs_i(tail_index.load()).value()),
+            stub_len.store(Int(MAX_GLOB_LEN) - Len(tail.load())),
+            GlobalPut(
+                tail_index.load(),
+                Concat(tail.load(), Substring(b.load(), 0, stub_len.load())),
+            ),
+            bytes_read.store(stub_len.load()),
+            While(
+                Seq(
+                    [
+                        tail_index.store(tail_index.load() + Int(1)),
+                        Len(b) > stub_len.load() + bytes_read.load(),
+                    ]
+                )
+            ).Do(
+                Seq(
+                    [
+                        GlobalPut(
+                            tail_index.load(),
+                            Substring(
+                                b,
+                                bytes_read.load(),
+                                bytes_read.load() + Int(MAX_GLOB_LEN),
+                            ),
+                        ),
+                        bytes_read.store(bytes_read.load() + Int(MAX_GLOB_LEN())),
+                    ]
+                )
+            ),
+        ]
+    )
 
 
 def approval_program(player, return_int):
@@ -36,7 +100,6 @@ def approval_program(player, return_int):
 # in one txn:
 # 2. update application
 # 3. call application
-# validate that the updated application is executed.. without this property
 # we are pretty screwed.
 if __name__ == "__main__":
     player = Player(
@@ -78,11 +141,10 @@ if __name__ == "__main__":
         player.params,
         app_id,
         on_complete=transaction.OnComplete.NoOpOC,
-        app_args = ["info"],
+        app_args=["info"],
     )
     transaction.assign_group_id([txn1, txn2])
     stxn1 = player.wallet.sign_transaction(txn1)
     stxn2 = player.wallet.sign_transaction(txn2)
     txid = player.algod.send_transactions([stxn1, stxn2])
     print(wait_for_confirmation(player.algod, txid), flush=True)
-
