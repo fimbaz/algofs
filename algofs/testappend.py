@@ -23,7 +23,7 @@ def get_tail():  # returns key index and offset
     return Seq(
         [
             i.store(Int(0)),
-            While(App.globalGet(Itob(i.load()))).Do(
+            While(Len(App.globalGet(Itob(i.load()))) == Int(0)).Do(
                     i.store(i.load() + Int(1))
             ),
             Return(i.load()),
