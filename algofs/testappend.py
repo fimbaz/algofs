@@ -16,27 +16,28 @@ def clear_program(player):
     return compiled_program
 
 
-@Subroutine(TealType.bytes)
+@Subroutine(TealType.uint64)
 def mebs_i(i):
-    return globalGetEx(Int(1), i)
+    return ReSturn(App.globalGetEx(Int(1), i))
 
 
 @Subroutine(TealType.uint64)
 def get_tail():  # returns key index and offset
-    i = ScratchVar()
+    i = ScratchVar(TealType.uint64)
     return Seq(
         [
             i.store(Int(0)),
-            While(
-                mebs_i(i.load()).has_value(),
-            ).Do(i.store(i.load() + Int(1))),
+            While(App.globalGetEx(Int(1), Itob(i.load())).hasValue()).Do(
+                i.store(i.load() + Int(1))
+            ),
             Return(i.load()),
         ]
     )
 
 
 MAX_GLOB_LEN = 256  # TODO get from consensus
-# ((1 << 16)-1) ((1<<8)-1)
+
+
 @Subroutine(TealType.uint64)
 def concat_bytes(b):
     tail_index = ScratchVar()
@@ -46,11 +47,11 @@ def concat_bytes(b):
     return Seq(
         [
             tail_index.store(get_tail()),
-            tail.store(mebs_i(tail_index.load()).value()),
+            tail.store(App.globalGet(tail_index.load())),
             stub_len.store(Int(MAX_GLOB_LEN) - Len(tail.load())),
-            GlobalPut(
+            App.globalPut(
                 tail_index.load(),
-                Concat(tail.load(), Substring(b.load(), 0, stub_len.load())),
+                Concat(tail.load(), Substring(b, Int(0), stub_len.load())),
             ),
             bytes_read.store(stub_len.load()),
             While(
@@ -63,7 +64,7 @@ def concat_bytes(b):
             ).Do(
                 Seq(
                     [
-                        GlobalPut(
+                        App.globalPut(
                             tail_index.load(),
                             Substring(
                                 b,
@@ -71,10 +72,11 @@ def concat_bytes(b):
                                 bytes_read.load() + Int(MAX_GLOB_LEN),
                             ),
                         ),
-                        bytes_read.store(bytes_read.load() + Int(MAX_GLOB_LEN())),
+                        bytes_read.store(bytes_read.load() + Int(MAX_GLOB_LEN)),
                     ]
                 )
             ),
+            Return(bytes_read.load()),
         ]
     )
 
@@ -89,9 +91,13 @@ def approval_program(player, return_int):
         [Txn.on_completion() == OnComplete.UpdateApplication, Return(Int(1))],
         [Txn.application_id() == Int(0), Return(Int(1))],
         [Txn.application_args[0] == Bytes("info"), Return(Int(return_int))],
+        [
+            Txn.application_args[0] == Bytes("append"),
+            Return(concat_bytes(Txn.application_args[1])),
+        ],
     )
     compiled_program = player.algod.compile(
-        compileTeal(program, Mode.Application, version=4)
+        compileTeal(program, Mode.Application, version=5)
     )["result"]
     return compiled_program
 
