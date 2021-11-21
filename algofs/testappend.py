@@ -36,61 +36,49 @@ MAX_GLOB_LEN = 256  # TODO get from consensus
 @Subroutine(TealType.uint64)
 def concat_bytes():
     tail_index = ScratchVar(TealType.uint64)
-    tail = ScratchVar(TealType.bytes)
     stub_space = ScratchVar(TealType.uint64)
-    bytes_read = ScratchVar(TealType.uint64)
+    bytes_written = ScratchVar(TealType.uint64)
+    bytes_to_write = ScratchVar(TealType.uint64)
     return Seq(
         [
+            bytes_to_write.store(Int(0)),
+            bytes_written.store(Int(0)),
+            # Starting varindex to write into
             tail_index.store(App.globalGet(Bytes("Tail")) / Int(MAX_GLOB_LEN)),
+            # starting index into varindex
             stub_space.store(App.globalGet(Bytes("Tail")) % Int(MAX_GLOB_LEN)),
-            If(stub_space.load() == Int(0),stub_space.store(Int(MAX_GLOB_LEN))),
+            If(stub_space.load() == Int(0), stub_space.store(Int(MAX_GLOB_LEN))),
             App.globalPut(Itob(tail_index.load()), Bytes("")),
-            tail.store(App.globalGet(Itob(tail_index.load()))),
-            If(
-                stub_space.load() > Len(Txn.application_args[1]) - Int(1),
-                stub_space.store(Len(Txn.application_args[1]) - Int(1)),
-            ),
-            App.globalPut(
-                Itob(tail_index.load()),
-                Concat(
-                    tail.load(),
-                    Substring(
-                        Txn.application_args[1], Int(0), stub_space.load()
-                    ),
-                ),
-            ),
-            bytes_read.store(stub_space.load()),
             While(
                 Seq(
                     [
-                        tail_index.store(tail_index.load() + Int(1)),
-                        Len(Txn.application_args[1]) > bytes_read.load(),
+                        Len(Txn.application_args[1]) > bytes_written.load(),
                     ]
                 )
             ).Do(
                 Seq(
                     [
-                        App.globalPut(
-                            Itob(tail_index.load()),
-                            Substring(
-                                Txn.application_args[1],
-                                Int(0),
-                                bytes_read.load()
-                            ),
-                        ),
-                        bytes_read.store(
-                            bytes_read.load()
+                        bytes_to_write.store(
+                            bytes_written.load()
                             + If(
                                 Len(Txn.application_args[1]) < Int(MAX_GLOB_LEN),
                                 Len(Txn.application_args[1]),
                                 Int(MAX_GLOB_LEN),
                             )
                         ),
+                        App.globalPut(
+                            Itob(tail_index.load()),
+                            Substring(Txn.application_args[1], bytes_written.load(),bytes_written.load()+bytes_to_write.load()),
+                        ),
+                        tail_index.store(tail_index.load() + Int(1)),
+                        bytes_written.store(bytes_written.load() + bytes_to_write.load()),
                     ]
                 )
             ),
-            App.globalPut(Bytes("Tail"), tail_index.load() * Int(MAX_GLOB_LEN) + bytes_read.load()),
-            Return(bytes_read.load()),
+            App.globalPut(
+                Bytes("Tail"), tail_index.load() * Int(MAX_GLOB_LEN) + bytes_written.load()
+            ),
+            Return(bytes_written.load())
         ]
     )
 
