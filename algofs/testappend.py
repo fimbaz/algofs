@@ -16,15 +16,14 @@ def clear_program(player):
     return compiled_program
 
 
-
 @Subroutine(TealType.uint64)
 def get_tail():  # returns key index and offset
     i = ScratchVar(TealType.uint64)
     return Seq(
         [
             i.store(Int(0)),
-            While(Len(App.globalGet(Itob(i.load()))) == Int(0)).Do(
-                    i.store(i.load() + Int(1))
+            While(Itob(App.globalGet(Itob(i.load()))) != Itob(Int(0))).Do(
+                i.store(i.load() + Int(1))
             ),
             Return(i.load()),
         ]
@@ -35,43 +34,62 @@ MAX_GLOB_LEN = 256  # TODO get from consensus
 
 
 @Subroutine(TealType.uint64)
-def concat_bytes(b):
-    tail_index = ScratchVar()
-    tail = ScratchVar()
-    stub_len = ScratchVar()
-    bytes_read = ScratchVar()
+def concat_bytes():
+    tail_index = ScratchVar(TealType.uint64)
+    tail = ScratchVar(TealType.bytes)
+    stub_space = ScratchVar(TealType.uint64)
+    bytes_read = ScratchVar(TealType.uint64)
     return Seq(
         [
-            tail_index.store(get_tail()),
-            tail.store(App.globalGet(tail_index.load())),
-            stub_len.store(Int(MAX_GLOB_LEN) - Len(tail.load())),
-            App.globalPut(
-                tail_index.load(),
-                Concat(tail.load(), Substring(b, Int(0), stub_len.load())),
+            tail_index.store(App.globalGet(Bytes("Tail")) / Int(MAX_GLOB_LEN)),
+            stub_space.store(App.globalGet(Bytes("Tail")) % Int(MAX_GLOB_LEN)),
+            If(stub_space.load() == Int(0),stub_space.store(Int(MAX_GLOB_LEN))),
+            App.globalPut(Itob(tail_index.load()), Bytes("")),
+            tail.store(App.globalGet(Itob(tail_index.load()))),
+            If(
+                stub_space.load() > Len(Txn.application_args[1]) - Int(1),
+                stub_space.store(Len(Txn.application_args[1]) - Int(1)),
             ),
-            bytes_read.store(stub_len.load()),
+            App.globalPut(
+                Itob(tail_index.load()),
+                Concat(
+                    tail.load(),
+                    Substring(
+                        Txn.application_args[1], Int(0), stub_space.load()
+                    ),
+                ),
+            ),
+            bytes_read.store(stub_space.load()),
             While(
                 Seq(
                     [
                         tail_index.store(tail_index.load() + Int(1)),
-                        Len(b) > stub_len.load() + bytes_read.load(),
+                        Len(Txn.application_args[1]) > bytes_read.load(),
                     ]
                 )
             ).Do(
                 Seq(
                     [
                         App.globalPut(
-                            tail_index.load(),
+                            Itob(tail_index.load()),
                             Substring(
-                                b,
-                                bytes_read.load(),
-                                bytes_read.load() + Int(MAX_GLOB_LEN),
+                                Txn.application_args[1],
+                                Int(0),
+                                bytes_read.load()
                             ),
                         ),
-                        bytes_read.store(bytes_read.load() + Int(MAX_GLOB_LEN)),
+                        bytes_read.store(
+                            bytes_read.load()
+                            + If(
+                                Len(Txn.application_args[1]) < Int(MAX_GLOB_LEN),
+                                Len(Txn.application_args[1]),
+                                Int(MAX_GLOB_LEN),
+                            )
+                        ),
                     ]
                 )
             ),
+            App.globalPut(Bytes("Tail"), tail_index.load() * Int(MAX_GLOB_LEN) + bytes_read.load()),
             Return(bytes_read.load()),
         ]
     )
@@ -86,11 +104,7 @@ def approval_program(player, return_int):
         [Txn.on_completion() == OnComplete.DeleteApplication, Return(Int(1))],
         [Txn.on_completion() == OnComplete.UpdateApplication, Return(Int(1))],
         [Txn.application_id() == Int(0), Return(Int(1))],
-        [Txn.application_args[0] == Bytes("info"), Return(Int(return_int))],
-        [
-            Txn.application_args[0] == Bytes("append"),
-            Return(concat_bytes(Txn.application_args[1])),
-        ],
+        [Txn.application_args[0] == Bytes("append"), Seq([Return(concat_bytes())])],
     )
     compiled_program = player.algod.compile(
         compileTeal(program, Mode.Application, version=5)
@@ -122,7 +136,7 @@ if __name__ == "__main__":
         approval_program=base64.b64decode(approval_program(player, 0)),
         clear_program=base64.b64decode(clear_program(player)),
         on_complete=transaction.OnComplete.NoOpOC,
-        global_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
+        global_schema=transaction.StateSchema(num_uints=1, num_byte_slices=10),
         local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
     )
     signed_txn = player.wallet.sign_transaction(txn)
@@ -131,22 +145,25 @@ if __name__ == "__main__":
     app_id = wait_for_confirmation(player.algod, txid)["application-index"]
     print(f"created {app_id}", flush=True)
     print("Update/call...", flush=True)
-    txn1 = transaction.ApplicationUpdateTxn(
-        player.hot_account,
-        player.params,
-        app_id,
-        approval_program=base64.b64decode(approval_program(player, 1)),
-        clear_program=base64.b64decode(clear_program(player)),
-    )
-    txn2 = transaction.ApplicationCallTxn(
+    txn1 = transaction.ApplicationCallTxn(
         player.hot_account,
         player.params,
         app_id,
         on_complete=transaction.OnComplete.NoOpOC,
-        app_args=["info"],
+        app_args=["append", "I personally think alan greenspan is cool."],
     )
-    transaction.assign_group_id([txn1, txn2])
+    transaction.assign_group_id([txn1])
     stxn1 = player.wallet.sign_transaction(txn1)
-    stxn2 = player.wallet.sign_transaction(txn2)
-    txid = player.algod.send_transactions([stxn1, stxn2])
+    txid = player.algod.send_transactions([stxn1])
+    txn1 = transaction.ApplicationCallTxn(
+        player.hot_account,
+        player.params,
+        app_id,
+        on_complete=transaction.OnComplete.NoOpOC,
+        app_args=["append", "I personally think alan greenspan is even nice smelling."],
+    )
+    transaction.assign_group_id([txn1])
+    stxn1 = player.wallet.sign_transaction(txn1)
+    txid = player.algod.send_transactions([stxn1])
+
     print(wait_for_confirmation(player.algod, txid), flush=True)
