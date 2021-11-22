@@ -30,7 +30,7 @@ def get_tail():  # returns key index and offset
     )
 
 
-MAX_GLOB_LEN = 256  # TODO get from consensus
+MAX_GLOB_LEN = 120  # TODO get from consensus
 
 
 @Subroutine(TealType.uint64)
@@ -39,46 +39,63 @@ def concat_bytes():
     stub_space = ScratchVar(TealType.uint64)
     bytes_written = ScratchVar(TealType.uint64)
     bytes_to_write = ScratchVar(TealType.uint64)
+    varisempty = ScratchVar(TealType.uint64)
+    bytes_left = ScratchVar(TealType.uint64)
     return Seq(
         [
             bytes_to_write.store(Int(0)),
             bytes_written.store(Int(0)),
-            # Starting varindex to write into
+            varisempty.store(Int(0)),
             tail_index.store(App.globalGet(Bytes("Tail")) / Int(MAX_GLOB_LEN)),
-            # starting index into varindex
-            stub_space.store(App.globalGet(Bytes("Tail")) % Int(MAX_GLOB_LEN)),
-            If(stub_space.load() == Int(0), stub_space.store(Int(MAX_GLOB_LEN))),
-            App.globalPut(Itob(tail_index.load()), Bytes("")),
-            While(
+            stub_space.store(
+                Int(MAX_GLOB_LEN) - (App.globalGet(Bytes("Tail")) % Int(MAX_GLOB_LEN))
+            ),
+            If(tail_index.load() == Int(0),App.globalPut(Itob(Int(0)),Bytes(""))),
+            While(Len(Txn.application_args[1]) > bytes_written.load()).Do(
                 Seq(
                     [
-                        Len(Txn.application_args[1]) > bytes_written.load(),
-                    ]
-                )
-            ).Do(
-                Seq(
-                    [
+                        bytes_left.store(
+                            Len(Txn.application_args[1])
+                            - (bytes_written.load())
+                        ),
                         bytes_to_write.store(
-                            bytes_written.load()
-                            + If(
-                                Len(Txn.application_args[1]) < Int(MAX_GLOB_LEN),
-                                Len(Txn.application_args[1]),
+                            If(varisempty.load(), bytes_left.load(), stub_space.load())
+                        ),
+                        bytes_to_write.store(
+                            If(
+                                bytes_to_write.load() > Int(MAX_GLOB_LEN),
                                 Int(MAX_GLOB_LEN),
+                                bytes_to_write.load(),
                             )
                         ),
                         App.globalPut(
                             Itob(tail_index.load()),
-                            Substring(Txn.application_args[1], bytes_written.load(),bytes_written.load()+bytes_to_write.load()),
+                            Concat(
+                                If(
+                                    varisempty.load(),
+                                    Bytes(""),
+                                    App.globalGet(Itob(tail_index.load())),
+                                ),
+                                Extract(
+                                    Txn.application_args[1],
+                                    bytes_written.load(),
+                                    bytes_to_write.load(),
+                                ),
+                            ),
                         ),
                         tail_index.store(tail_index.load() + Int(1)),
-                        bytes_written.store(bytes_written.load() + bytes_to_write.load()),
+                        bytes_written.store(
+                            bytes_written.load() + bytes_to_write.load()
+                        ),
+                        varisempty.store(Int(1)),
                     ]
                 )
             ),
             App.globalPut(
-                Bytes("Tail"), tail_index.load() * Int(MAX_GLOB_LEN) + bytes_written.load()
+                Bytes("Tail"),
+                App.globalGet(Bytes("Tail")) + bytes_written.load(),
             ),
-            Return(bytes_written.load())
+            Return(bytes_written.load()),
         ]
     )
 
@@ -138,7 +155,10 @@ if __name__ == "__main__":
         player.params,
         app_id,
         on_complete=transaction.OnComplete.NoOpOC,
-        app_args=["append", "I personally think alan greenspan is cool."],
+        app_args=[
+            "append",
+            "I personally think alan greenspan is coolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcoolcooly.",
+        ],
     )
     transaction.assign_group_id([txn1])
     stxn1 = player.wallet.sign_transaction(txn1)
@@ -148,7 +168,10 @@ if __name__ == "__main__":
         player.params,
         app_id,
         on_complete=transaction.OnComplete.NoOpOC,
-        app_args=["append", "I personally think alan greenspan is even nice smelling."],
+        app_args=[
+            "append",
+            "I personally think alan greenspan is even nice smelling..............................................................................................................................",
+        ],
     )
     transaction.assign_group_id([txn1])
     stxn1 = player.wallet.sign_transaction(txn1)
