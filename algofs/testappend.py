@@ -41,6 +41,9 @@ def concat_bytes():
     bytes_to_write = ScratchVar(TealType.uint64)
     varisempty = ScratchVar(TealType.uint64)
     bytes_left = ScratchVar(TealType.uint64)
+    # pyteal can't do variable existence inside loops because it breaks the scratch model,
+    # that explains about half the 'style' below.  The other half is because i wrote it while
+    #
     return Seq(
         [
             bytes_to_write.store(Int(0)),
@@ -50,13 +53,12 @@ def concat_bytes():
             stub_space.store(
                 Int(MAX_GLOB_LEN) - (App.globalGet(Bytes("Tail")) % Int(MAX_GLOB_LEN))
             ),
-            If(tail_index.load() == Int(0),App.globalPut(Itob(Int(0)),Bytes(""))),
+            If(tail_index.load() == Int(0), App.globalPut(Itob(Int(0)), Bytes(""))),
             While(Len(Txn.application_args[1]) > bytes_written.load()).Do(
                 Seq(
                     [
                         bytes_left.store(
-                            Len(Txn.application_args[1])
-                            - (bytes_written.load())
+                            Len(Txn.application_args[1]) - (bytes_written.load())
                         ),
                         bytes_to_write.store(
                             If(varisempty.load(), bytes_left.load(), stub_space.load())
@@ -65,6 +67,13 @@ def concat_bytes():
                             If(
                                 bytes_to_write.load() > Int(MAX_GLOB_LEN),
                                 Int(MAX_GLOB_LEN),
+                                bytes_to_write.load(),
+                            )
+                        ),
+                        bytes_to_write.store(
+                            If(
+                                bytes_to_write.load() > bytes_left.load(),
+                                bytes_left.load(),
                                 bytes_to_write.load(),
                             )
                         ),
