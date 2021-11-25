@@ -3,136 +3,81 @@ txn RekeyTo
 global ZeroAddress
 !=
 bnz retfail
+
 txn OnCompletion
 int DeleteApplication
 ==
 bnz retok
+
 txn OnCompletion
 int UpdateApplication
 ==
 bnz retok
+
 txn ApplicationID
 int 0
 ==
 bnz retok
+
 txna ApplicationArgs 0
 byte "append"
 ==
-bnz append_routine
-err
-append_routine:
-txna ApplicationArgs 1
-callsub append
+bnz append
+pop
+pop
+int 1
 return
+err
 retok:
 int 1
 return
 retfail:
 int 0
 return
-sub0: // concat_bytes
-store 0
-int 0
-store 4
-int 0
-store 3
-int 0
-store 5
-byte "Tail"
-app_global_get
-int 120
-/
-store 1
-int 120
-byte "Tail"
-app_global_get
-int 120
-%
--
-store 2
-load 1
-int 0
-==
-bnz sub0_l15
-sub0_l1:
-load 0
-len
-load 3
->
-bz sub0_l16
-load 0
-len
-load 3
--
-store 6
-load 5
-bnz sub0_l14
-load 2
-sub0_l4:
-store 4
-load 4
-int 120
->
-bnz sub0_l13
-load 4
-sub0_l6:
-store 4
-load 4
-load 6
->
-bnz sub0_l12
-load 4
-sub0_l8:
-store 4
-load 1
-itob
-load 5
-bnz sub0_l11
-load 1
-itob
-app_global_get
-sub0_l10:
-load 0
-load 3
-load 4
-extract3
-concat
-app_global_put
-load 1
+append:
 int 1
-+
-store 1
-load 3
-load 4
-+
-store 3
-int 1
-store 5
-b sub0_l1
-sub0_l11:
-byte ""
-b sub0_l10
-sub0_l12:
-load 6
-b sub0_l8
-sub0_l13:
-int 120
-b sub0_l6
-sub0_l14:
-load 6
-b sub0_l4
-sub0_l15:
-int 0
+callsub find_end // pushes GLOB_VALUE[GLOB_INDEX],GLOB_INDEX onto stack
 itob
-byte ""
-app_global_put
-b sub0_l1
-sub0_l16:
-byte "Tail"
-byte "Tail"
-app_global_get
-load 3
-+
-app_global_put
-load 3
+dup
+callsub makeglob // make empty glob  if no glob found.
+app_global_get_ex // Int(1),GLOB_INDEX
+// Now append to it!
+pop
+pop
+pop
+int 1
+return
+makeglob:
+pushbytes ""
+swap
+app_global_put //GLOB_INDEX, ""
 retsub
+find_end:
+int 0 
+store 65 // GLOB_INDEX=0
+int 0 // push so we can pop
+check_next_var:
+pop
+int 0
+load 65
+itob
+app_global_get_ex  // GLOB_EXISTS,GLOB_VALUE=app_global_get_ex bytes(GLOB_INDEX)
+int 0
+!= 
+bz done    // if(!GLOB_EXISTS){ break; } else {
+store 66  // set GLOB_VALUE
+load 65   // increment GLOB_INDEX
+int 1     // ^
++         // ^
+store 65  // ^
+b check_next_var
+done:
+store 66 // store len in 66
+//load 65  // decrement GLOB_INDEX so it points to an existing variable
+//int 1
+//-
+//store 65
+load 66
+load 65
+retsub
+err
