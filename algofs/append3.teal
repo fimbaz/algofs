@@ -22,10 +22,7 @@ bnz retok
 txna ApplicationArgs 0
 byte "append"
 ==
-bnz append
-pop
-pop
-int 1
+callsub append
 return
 err
 retok:
@@ -35,23 +32,19 @@ retfail:
 int 0
 return
 append:
-int 1
 callsub find_end // pushes GLOB_VALUE[GLOB_INDEX],GLOB_INDEX onto stack
-itob
+len
+bnz skip_make_glob
 dup
-callsub makeglob // make empty glob  if no glob found.
-app_global_get_ex // Int(1),GLOB_INDEX
-// Now append to it!
-pop
-pop
-pop
-int 1
-return
-makeglob:
-pushbytes ""
-swap
+byte ""
 app_global_put //GLOB_INDEX, ""
+skip_make_glob:
+txna ApplicationArgs 1
+callsub doappend
+pop
+pop
 retsub
+//##
 find_end:
 int 0 
 store 65 // GLOB_INDEX=0
@@ -73,11 +66,30 @@ store 65  // ^
 b check_next_var
 done:
 store 66 // store len in 66
-//load 65  // decrement GLOB_INDEX so it points to an existing variable
-//int 1
-//-
-//store 65
+load 65  // store key in 65
+itob
+store 65
 load 66
 load 65
+retsub
+doappend: // START_INDEX STRING_TO_APPEND
+int 0
+store 68 // READ_POS (the position we're reading from in the source string)
+swap
+dup
+app_global_get
+len
+int 128
+swap
+-
+swap
+app_global_get
+load 68
+swap           // START_INDEX BYTES_LEFT_IN_KEY
+extract3         
+concat
+load 66 // TODO use the 'argument' instead of the 'global'
+swap
+app_global_put
 retsub
 err

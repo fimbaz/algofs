@@ -31,10 +31,19 @@ def get_tail():  # returns key index and offset
 
 
 MAX_GLOB_LEN = 120  # TODO get from consensus
+MAX_SCRATCH_SLOTS = 64
+# TODO save 7 bytes.
 
-
+def load_bytes():
+    # We're gonna leave this loop unrolled for now.
+    seq = []
+    for i in range(64,MAX_SCRATCH_SLOTS+64):
+        seq.append(If(App.globalGetEx(Int(1),Itob(Int(i))).hasValue(),ScratchVar(TealType.bytes,slotId=i).store(App.globalGet(Itob(Int(i)))),Return(Int(1))))
+    seq.append(Return(Int(1)))
+    return Seq(seq)
+    
 @Subroutine(TealType.uint64)
-def concat_bytes():
+def concat_bytes(arg):
     tail_index = ScratchVar(TealType.uint64)
     stub_space = ScratchVar(TealType.uint64)
     bytes_written = ScratchVar(TealType.uint64)
@@ -43,7 +52,7 @@ def concat_bytes():
     bytes_left = ScratchVar(TealType.uint64)
     # pyteal can't do variable existence inside loops because it breaks the scratch model,
     # that explains about half the 'style' below.  The other half is because i wrote it while
-    #
+    # being beaten by children
     return Seq(
         [
             bytes_to_write.store(Int(0)),
@@ -54,11 +63,11 @@ def concat_bytes():
                 Int(MAX_GLOB_LEN) - (App.globalGet(Bytes("Tail")) % Int(MAX_GLOB_LEN))
             ),
             If(tail_index.load() == Int(0), App.globalPut(Itob(Int(0)), Bytes(""))),
-            While(Len(Txn.application_args[1]) > bytes_written.load()).Do(
+            While(Len(arg) > bytes_written.load()).Do(
                 Seq(
                     [
                         bytes_left.store(
-                            Len(Txn.application_args[1]) - (bytes_written.load())
+                            Len(arg) - (bytes_written.load())
                         ),
                         bytes_to_write.store(
                             If(varisempty.load(), bytes_left.load(), stub_space.load())
@@ -86,7 +95,7 @@ def concat_bytes():
                                     App.globalGet(Itob(tail_index.load())),
                                 ),
                                 Extract(
-                                    Txn.application_args[1],
+                                    arg,
                                     bytes_written.load(),
                                     bytes_to_write.load(),
                                 ),
@@ -118,11 +127,14 @@ def approval_program(player, return_int):
         [Txn.on_completion() == OnComplete.DeleteApplication, Return(Int(1))],
         [Txn.on_completion() == OnComplete.UpdateApplication, Return(Int(1))],
         [Txn.application_id() == Int(0), Return(Int(1))],
-        [Txn.application_args[0] == Bytes("append"), Seq([Return(concat_bytes())])],
+        [Txn.application_args[0] == Bytes("append"), Seq([Return(concat_bytes(Txn.application_args[1]))])],
     )
     compiled_program = player.algod.compile(
         compileTeal(program, Mode.Application, version=5)
     )["result"]
+    program = compileTeal(program, Mode.Application, version=5)
+    import pdb
+    pdb.set_trace()
     return compiled_program
 
 
@@ -150,7 +162,7 @@ if __name__ == "__main__":
         approval_program=base64.b64decode(approval_program(player, 0)),
         clear_program=base64.b64decode(clear_program(player)),
         on_complete=transaction.OnComplete.NoOpOC,
-        global_schema=transaction.StateSchema(num_uints=1, num_byte_slices=10),
+        global_schema=transaction.StateSchema(num_uints=1, num_byte_slices=63),
         local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
     )
     signed_txn = player.wallet.sign_transaction(txn)
