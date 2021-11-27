@@ -49,13 +49,15 @@ itob
 app_global_get_ex
 bz done_finding_keys
 len
-int 128
+int 120
 <
-bnz done_finding_keys
+bnz done_finding_keys_with_data
 int 1
 + // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
 b next_key
 done_finding_keys:  // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+pop
+done_finding_keys_with_data:
 itob // Stack: Bytes(LAST_POSSIBLE_OCCUPIED_KEY)
 //2
 dup
@@ -72,7 +74,7 @@ append_data: // Stack: Bytes(LAST_OCCUPIED_KEY)
 dup
 app_global_get
 len 
-int 128
+int 120
 swap
 -  // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) 
 txna ApplicationArgs 1
@@ -99,7 +101,6 @@ dup
 cover 2
 swap
 app_global_put  // Int(BYTES_WRITTEN_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)
-pop
 pop
 pop
 int 1  // Int(LAST_OCCUPIED_KEY)
