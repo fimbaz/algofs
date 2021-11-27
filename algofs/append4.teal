@@ -1,4 +1,40 @@
 #pragma version 5
+//PREAMBLE
+txn RekeyTo
+global ZeroAddress
+!=
+bnz retfail
+
+txn OnCompletion
+int DeleteApplication
+==
+bnz retok
+
+txn OnCompletion
+int UpdateApplication
+==
+bnz retok
+
+txn ApplicationID
+int 0
+==
+bnz retok
+txna ApplicationArgs 0
+byte "append"
+==
+callsub append
+return
+err
+
+retok: // success/fail functions
+int 1
+return
+retfail:
+int 0
+return
+// END PREAMBLE
+
+append:
 //#1. find the end of the globvars
 //#2. write the argument to the end of them
 //1
@@ -32,3 +68,4 @@ app_global_put
 skip_create_glob: // Stack: Bytes(LAST_OCCUPIED_KEY)
 pop
 int 1
+retsub
