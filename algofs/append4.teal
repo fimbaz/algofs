@@ -1,0 +1,34 @@
+#pragma version 5
+//#1. find the end of the globvars
+//#2. write the argument to the end of them
+//1
+int 0
+next_key: // Stack: Int(NEXT_UNOCCUPIED_KEY)
+int 0
+swap
+dup // Stack: APPLICATION_ID Int(NEXT_POSSIBLE_OCCUPIED_KEY) Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+cover 2  // Stack:  Int(NEXT_POBBILE_OCCUPIED_KEY) APPLICATION_ID Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+itob
+app_global_get_ex
+bz done_finding_keys
+pop    // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+int 1
++
+b next_key
+done_finding_keys:
+pop  // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+itob // Stack: Bytes(LAST_POSSIBLE_OCCUPIED_KEY)
+//2
+dup
+int 0
+swap
+app_global_get_ex
+swap
+pop
+bnz skip_create_glob
+dup
+byte ""
+app_global_put
+skip_create_glob: // Stack: Bytes(LAST_OCCUPIED_KEY)
+pop
+int 1

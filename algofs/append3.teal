@@ -32,14 +32,20 @@ retfail:
 int 0
 return
 append:
-callsub find_end // pushes GLOB_VALUE[GLOB_INDEX],GLOB_INDEX onto stack
-len
+callsub find_end // pushes bytes(GLOB_INDEX) onto stack
+dup
+int 0
+swap
+app_global_get_ex
+swap
+pop
 bnz skip_make_glob
 dup
 byte ""
 app_global_put //GLOB_INDEX, ""
 skip_make_glob:
 txna ApplicationArgs 1
+swap
 callsub doappend
 pop
 pop
@@ -58,25 +64,20 @@ app_global_get_ex  // GLOB_EXISTS,GLOB_VALUE=app_global_get_ex bytes(GLOB_INDEX)
 int 0
 != 
 bz done    // if(!GLOB_EXISTS){ break; } else {
-store 66  // set GLOB_VALUE
+pop       // got a value, discard it
 load 65   // increment GLOB_INDEX
 int 1     // ^
 +         // ^
 store 65  // ^
 b check_next_var
 done:
-store 66 // store len in 66
-load 65  // store key in 65
-itob
-store 65
-load 66
 load 65
+itob
 retsub
-doappend: // START_INDEX STRING_TO_APPEND
-int 0
-store 68 // READ_POS (the position we're reading from in the source string)
-swap
+doappend: // bytes(START_INDEX)
 dup
+int 0
+store 68 // store READ_POS (the position we're reading from in the source string)
 app_global_get
 len
 int 128
