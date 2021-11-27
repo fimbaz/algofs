@@ -48,12 +48,14 @@ cover 2  // Stack:  Int(NEXT_POBBILE_OCCUPIED_KEY) APPLICATION_ID Int(NEXT_POSSI
 itob
 app_global_get_ex
 bz done_finding_keys
-pop    // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+len
+int 128
+<
+bnz done_finding_keys
 int 1
-+
++ // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
 b next_key
-done_finding_keys:
-pop  // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
+done_finding_keys:  // Stack: Int(NEXT_POSSIBLE_OCCUPIED_KEY)
 itob // Stack: Bytes(LAST_POSSIBLE_OCCUPIED_KEY)
 //2
 dup
@@ -96,9 +98,10 @@ swap
 dup
 cover 2
 swap
-app_global_put
+app_global_put  // Int(BYTES_WRITTEN_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)
 pop
-pop // unstash BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY
+pop
+pop
 int 1  // Int(LAST_OCCUPIED_KEY)
 
 // END APPEND FUNCTION
