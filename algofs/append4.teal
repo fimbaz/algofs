@@ -22,7 +22,7 @@ bnz retok
 txna ApplicationArgs 0
 byte "append"
 ==
-callsub append
+bnz append
 return
 err
 
@@ -34,6 +34,7 @@ int 0
 return
 // END PREAMBLE
 
+//APPEND: takes the second argument and appends it to the end of the globvar array
 append:
 //#1. find the end of the globvars
 //#2. write the argument to the end of them
@@ -61,11 +62,43 @@ swap
 app_global_get_ex
 swap
 pop
-bnz skip_create_glob
+bnz append_data
 dup
 byte ""
 app_global_put
-skip_create_glob: // Stack: Bytes(LAST_OCCUPIED_KEY)
+append_data: // Stack: Bytes(LAST_OCCUPIED_KEY)
+dup
+app_global_get
+len 
+int 128
+swap
+-  // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) 
+txna ApplicationArgs 1
+len // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) Int(LENGTH_OF_STRING_TO_APPEND)
+dig 1  // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) Int(LENGTH_OF_STRING_TO_APPEND) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) Int(LENGTH_OF_STRING_TO_APPEND)
+dig 1   // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) Int(LENGTH_OF_STRING_TO_APPEND) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) Int(LENGTH_OF_STRING_TO_APPEND)
+>  // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_FREE_IN_LAST_OCCUPIED_KEY) Int(LENGTH_OF_STRING_TO_APPEND) Int(IS_APPENDED_STRING_SHORT)
+select  // Bytes(LAST_OCCUPIED_KEY) Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY)
+dup
+cover 2 // stash BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY
+swap  //  Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)
+txna ApplicationArgs 1
+int 0 // Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)  Bytes(APPLICATION_ARG_1) Int(0)
+uncover 3 // Bytes(LAST_OCCUPIED_KEY)  Bytes(APPLICATION_ARG_1) Int(0) Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY)
+extract3  // Bytes(LAST_OCCUPIED_KEY)  Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE)
+swap      // Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
+dup     // Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
+cover 2  // Bytes(LAST_OCCUPIED_KEY) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
+app_global_get   // Bytes(LAST_OCCUPIED_KEY) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY_DATA)
+swap    // Bytes(LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY_DATA) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) 
+concat // Bytes(LAST_OCCUPIED_KEY) Bytes(CHUNK_TO_WRITE)
+swap
+dup
+cover 2
+swap
+app_global_put
 pop
-int 1
-retsub
+pop // unstash BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY
+int 1  // Int(LAST_OCCUPIED_KEY)
+
+// END APPEND FUNCTION
