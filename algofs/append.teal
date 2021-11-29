@@ -1,0 +1,144 @@
+#pragma version 5
+txn RekeyTo
+global ZeroAddress
+!=
+bnz main_l10
+txn OnCompletion
+int DeleteApplication
+==
+bnz main_l9
+txn OnCompletion
+int UpdateApplication
+==
+bnz main_l8
+txn ApplicationID
+int 0
+==
+bnz main_l7
+txna ApplicationArgs 0
+byte "append"
+==
+bnz main_l6
+err
+main_l6:
+txna ApplicationArgs 1
+callsub sub0
+return
+main_l7:
+int 1
+return
+main_l8:
+int 1
+return
+main_l9:
+int 1
+return
+main_l10:
+int 0
+return
+sub0: // concat_bytes
+store 0
+int 0
+store 4
+int 0
+store 3
+int 0
+store 5
+byte "Tail"
+app_global_get
+int 120
+/
+store 1
+int 120
+byte "Tail"
+app_global_get
+int 120
+%
+-
+store 2
+load 1
+int 0
+==
+bnz sub0_l15
+sub0_l1:
+load 0
+len
+load 3
+>
+bz sub0_l16
+load 0
+len
+load 3
+-
+store 6
+load 5
+bnz sub0_l14
+load 2
+sub0_l4:
+store 4
+load 4
+int 120
+>
+bnz sub0_l13
+load 4
+sub0_l6:
+store 4
+load 4
+load 6
+>
+bnz sub0_l12
+load 4
+sub0_l8:
+store 4
+load 1
+itob
+load 5
+bnz sub0_l11
+load 1
+itob
+app_global_get
+sub0_l10:
+load 0
+load 3
+load 4
+extract3
+concat
+app_global_put
+load 1
+int 1
++
+store 1
+load 3
+load 4
++
+store 3
+int 1
+store 5
+b sub0_l1
+sub0_l11:
+byte ""
+b sub0_l10
+sub0_l12:
+load 6
+b sub0_l8
+sub0_l13:
+int 120
+b sub0_l6
+sub0_l14:
+load 6
+b sub0_l4
+sub0_l15:
+int 0
+itob
+byte ""
+app_global_put
+b sub0_l1
+sub0_l16:
+byte "Tail"
+byte "Tail"
+app_global_get
+load 3
++
+app_global_put
+load 3
+retsub
