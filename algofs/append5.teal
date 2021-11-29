@@ -40,6 +40,8 @@ itob
 store 1
 append_body:
 callsub create_key_if_empty //# updates SCRATCH 1, returns bytes free in scratch slot
+dup
+bz inc_already
 load 2
 swap
 callsub append_chunk_to_key // # updates SCRATCH 2
@@ -47,6 +49,11 @@ txna ApplicationArgs 1
 len
 load 2
 -
+b skip
+inc_already:
+pop
+int 1
+skip:
 callsub increment_key
 bnz append_body
 int 1
@@ -78,6 +85,7 @@ int 120
 swap
 -
 retsub
+
 append_chunk_to_key: // # CHUNK_START BYTES_FREE_IN_CURRENT_KEY 
 txna ApplicationArgs 1
 len
