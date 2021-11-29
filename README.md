@@ -1,7 +1,3 @@
-So now I have this block store in algorand, right?  Each block of data is 'just' a stateful app that loads up the program's scratch buffers with literal data and then exits.  I've been having fun with this.. I can stash whole movies in there and stream them back.  Whoopee.  But can we create a data-bearing application that can only be modified according to certain rules?  A good start would be appending.. then perhaps we could have guest books and things.  I think it can be done, because transaction groups are crazy powerful.  Basically we can sandwich an application update transaction between two calls to the application, and then approve the group based on a comparison between the original call and the call to the updated txn. It could even be simpler maybe? The append could be an argument to an application update transaction, the update call itself would load the scratch buffers for the original program, and the subsequent call to the updated app validates that the updated app has been modified so as to represent the original buffer's content plus the content of the argument to the call.  And it can all be bolted down super well, because transactions in a group can all see each other perfectly and decide to fail based on literally any information in them.
-
-This whole flow wasn't possible until pretty recently btw-- Teal v4 was necessary to observe the scratch space of other apps in the group, and it came out in like July.
-
 ## AlgoFS
 ### Wut
 
@@ -79,10 +75,11 @@ OR
 The best non-fungible tokens of all were the friends we made along the way.
 
 OR 
-These days, a unit of cryptocurrency is treated like a share in a company.. but that's not the nature of the fundamental value of a unit of cryptocurrency. A share in a company entitles its holder to some of the dividends accrued on the capital owned collectively by shareholders.  A unit of cryptocurrency entitles its holder to access to some of the capital owned collectively by token holders.
+These days, a unit of cryptocurrency is treated like a share in a company.. but that's not the nature of the fundamental value of a unit of cryptocurrency. A share in a company entitles its holder to some of the dividends accrued on the capital owned collectively by shareholders.  A unit of cryptocurrency entitles its holder to access to some of the capital owned collectively by token holders, in the form of data and compute.  Granted, a blockchain doesn't give very /much/ data or compute.. but that's how it is.  If your blockchain isn't powered by unicorn farts, its value is the value of the compute and data storage guarantees it can make, and network tokens can (at best) represent some share of this value.  Any other value on-chain will be with respect to this original value, e.g. checkmates derived on the chain, conversations recorded, votes tallied, battleships sunk, poker hands played.
 
-Just like the fundamental source of value of fiat currency is its ability to pay taxes, the fundamental source of value of a cryptocurrency is its ability to pay transaction fees, which fees have the singular purpose of durably mutating data in a public consensus network.
+After all, just like the fundamental source of value of fiat currency is its ability to pay taxes, the fundamental source of value of a cryptocurrency is its ability to pay transaction fees, which fees have the singular purpose of durably mutating data in a public consensus network.
 
+I think things don't get really interesting until we can do full consensual homomorphic computing, but just like some folks hung around the www when it was all cgi-bin, some early adopters like me wanna flip this two-wheeled tricycle off the embankment.
 -
 
 a representation of a thing is not the thing itself (data is not physical)
