@@ -1,8 +1,0 @@
-#pragma version 5
-txn RekeyTo
-global ZeroAddress
-!= // guard against rekey
-int 0
-txn OnCompletion
-int DeleteApplication
-== // deletion not allowed

@@ -1,144 +1,113 @@
 #pragma version 5
+//PREAMBLE
 txn RekeyTo
 global ZeroAddress
 !=
-bnz main_l10
+bnz retfail
+
 txn OnCompletion
 int DeleteApplication
 ==
-bnz main_l9
+bnz retok
+
 txn OnCompletion
 int UpdateApplication
 ==
-bnz main_l8
+bnz retok
+
 txn ApplicationID
 int 0
 ==
-bnz main_l7
+bnz retok
 txna ApplicationArgs 0
 byte "append"
 ==
-bnz main_l6
+bnz append
+return
 err
-main_l6:
-txna ApplicationArgs 1
-callsub sub0
-return
-main_l7:
+
+retok: // success/fail functions
 int 1
 return
-main_l8:
-int 1
-return
-main_l9:
-int 1
-return
-main_l10:
+retfail:
 int 0
 return
-sub0: // concat_bytes
-store 0
+// END PREAMBLE
+err
+append: //# SCRATCH 1: current key, SCRATCH 2: bytes written
 int 0
-store 4
-int 0
-store 3
-int 0
-store 5
-byte "Tail"
-app_global_get
-int 120
-/
+itob
 store 1
-int 120
-byte "Tail"
-app_global_get
-int 120
-%
--
-store 2
-load 1
-int 0
-==
-bnz sub0_l15
-sub0_l1:
-load 0
-len
-load 3
->
-bz sub0_l16
-load 0
-len
-load 3
--
-store 6
-load 5
-bnz sub0_l14
+append_body:
+callsub create_key_if_empty //# updates SCRATCH 1, returns bytes free in scratch slot
+dup
+bz inc_already
 load 2
-sub0_l4:
-store 4
-load 4
-int 120
->
-bnz sub0_l13
-load 4
-sub0_l6:
-store 4
-load 4
-load 6
->
-bnz sub0_l12
-load 4
-sub0_l8:
-store 4
+swap
+callsub append_chunk_to_key // # updates SCRATCH 2
+txna ApplicationArgs 1
+len
+load 2
+-
+b skip
+inc_already:
+pop
+int 1
+skip:
+callsub increment_key
+bnz append_body
+int 1
+return
+
+increment_key:
 load 1
-itob
-load 5
-bnz sub0_l11
-load 1
-itob
-app_global_get
-sub0_l10:
-load 0
-load 3
-load 4
-extract3
-concat
-app_global_put
-load 1
+btoi
 int 1
 +
+itob
 store 1
-load 3
-load 4
-+
-store 3
-int 1
-store 5
-b sub0_l1
-sub0_l11:
-byte ""
-b sub0_l10
-sub0_l12:
-load 6
-b sub0_l8
-sub0_l13:
-int 120
-b sub0_l6
-sub0_l14:
-load 6
-b sub0_l4
-sub0_l15:
+retsub
+
+create_key_if_empty:
 int 0
-itob
+load 1
+app_global_get_ex
+bnz skip_create_key
+pop
+load 1
 byte ""
 app_global_put
-b sub0_l1
-sub0_l16:
-byte "Tail"
-byte "Tail"
-app_global_get
-load 3
+int 120
+retsub
+skip_create_key:
+len
+int 120
+swap
+-
+retsub
+
+append_chunk_to_key: // # CHUNK_START BYTES_FREE_IN_CURRENT_KEY 
+txna ApplicationArgs 1
+len
+load 2
+-
+dup2
+>
+select
+dup
+load 2
 +
+store 2
+cover 1
+txna ApplicationArgs 1
+cover 2
+swap
+extract3
+load 1
+app_global_get
+swap
+concat
+load 1
+swap
 app_global_put
-load 3
 retsub
