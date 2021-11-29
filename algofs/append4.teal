@@ -89,20 +89,79 @@ swap  //  Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)
 txna ApplicationArgs 1
 int 0 // Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)  Bytes(APPLICATION_ARG_1) Int(0)
 uncover 3 // Bytes(LAST_OCCUPIED_KEY)  Bytes(APPLICATION_ARG_1) Int(0) Int(BYTES_TO_WRITE_IN_LAST_OCCUPIED_KEY)
+dup
+store 60 // 60(BYTES_WRITTEN)
 extract3  // Bytes(LAST_OCCUPIED_KEY)  Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE)
 swap      // Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
 dup     // Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
 cover 2  // Bytes(LAST_OCCUPIED_KEY) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
 app_global_get   // Bytes(LAST_OCCUPIED_KEY) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) Bytes(LAST_OCCUPIED_KEY_DATA)
-swap    // Bytes(LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY_DATA) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE) 
+swap    // Bytes(LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY_DATA) Bytes(FIRST_CHUNK_OF_STRING_TO_WRITE)
 concat // Bytes(LAST_OCCUPIED_KEY) Bytes(CHUNK_TO_WRITE)
 swap
 dup
-cover 2
+cover 2  // Bytes(LAST_OCCUPIED_KEY) Bytes(CHUNK_TO_WRITE) Bytes(LAST_OCCUPIED_KEY)
 swap
-app_global_put  // Int(BYTES_WRITTEN_IN_LAST_OCCUPIED_KEY) Bytes(LAST_OCCUPIED_KEY)
+app_global_put // Int(BYTES_WRITTEN_IN_LAST_OCCUPIED_KEY)  Bytes(LAST_OCCUPIED_KEY)
+swap
+txna ApplicationArgs 1
+len
+store 61 // 61(TOTAL_BYTES_TO_WRITE)
+load 61
+load 60
+-
+swap
+pop // Figure this out
+load 61
+load 60
+==  // TOTAL_BYTES_TO_WRITE == BYTES_WRITTEN
+swap
 pop
-pop
-int 1  // Int(LAST_OCCUPIED_KEY)
+bnz all_done
+store 72
+append_next_chunk: // Bytes(LAST_OCCUPIED_KEY)
+load 72
+btoi
+int 1
++
+itob // Bytes(NEXT_OCCUPIED_KEY)
+dup
+store 72
+load 61 
+load 60  // Int(TOTAL_BYTES_TO_WRITE) - Int(BYTES_WRITTEN)
+-        // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_LEFT)
+int 120  // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_LEFT) Int(120)
+dig 1
+dig 1   // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_LEFT) Int(120) Int(BYTES_LEFT) Int(120)
+<
+select // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_TO_WRITE)
+dup
+cover 2 // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_TO_WRITE)
 
-// END APPEND FUNCTION
+txna ApplicationArgs 1
+load 61
+uncover 2   // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) Int(BYTES_LEFT)  Int(BYTES_TO_WRITE)
+// 130 (00c0): swap [120 AAAAAAAAAAM= apparg1 120 520]
+ // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) Int(BYTES_TO_WRITE) Int(BYTES_LEFT)
+- // START_INDEX = TOTAL_BYTES_TO_WRITE  - BYTES_LEFT
+dup  // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) START_INDEX
+dig 4 // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) START_INDEX Int(BYTES_TO_WRITE)
+extract3 // STRING_TO_APPEND START_INDEX BYTES_TO_WRITE
+app_global_put    // Int(BYTES_TO_WRITE)
+dup
+load 60
+-
+store 60
+store 61
+load 72
+btoi
+int 1
++
+itob
+store 72
+load 60
+bnz append_next_chunk
+//TODO: APPEND LAST CHUNK
+all_done:
+int 1
+return

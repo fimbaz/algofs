@@ -1,4 +1,4 @@
 #!/bin/bash
-sudo -u algorand -E  goal app call --app-id $1 --app-arg "str:append" --app-arg "str:hello mr" --from UV65HPXNKRXPEUXSMQMZ766LT4NKAUK74SX2IAGCT6QB2TULDAQ5VJPGQU --dryrun-dump  --out=/tmp/foo.dump
+sudo -u algorand -E  goal app call --app-id $1 --app-arg "str:append" --app-arg "str:hello mr greenspan I really appreciate you even if other people do not necessarily and what's more I think that the federal reserve is an institution that benefits me personally largely by adding to the stability of global price represntation yadda yadda yaddahello mr greenspan I really appreciate you even if other people do not necessarily and what's more I think that the federal reserve is an institution that benefits me personally largely by adding to the stability of global price represntation yadda yadda yadda" --from UV65HPXNKRXPEUXSMQMZ766LT4NKAUK74SX2IAGCT6QB2TULDAQ5VJPGQU --dryrun-dump  --out=/tmp/foo.dump
 echo dumpd
 sudo -E -u algorand goal clerk dryrun-remote   -D /tmp/foo.dump  --verbose
