@@ -11,11 +11,12 @@ Txn costs should stay reasonable.. In terms of locked funds, yeah maybe.  Hopefu
 ### Done already:
 * ~8k block read/write
 ### Want:
-* multiblock objects
-* named multiobject storage
-* infinite scale
-* self host this project on-chain and GTFO github forever plzkthx.
-* design the smallest possible shell script that can bootstrap this software from the chain (might need stages).
+* multiblock objects [CHECK]
+* named multiobject storage [CHECK]
+* infinite scale [HAHA]
+* self host this project on-chain and GTFO github forever plzkthx. [NOT YET]
+* design the smallest possible shell script that can bootstrap this software from the chain (might need stages). [SUMMERTIME]
+* appendable storage [CHECK!]
 
 ### Hacks:
 need the developer API to use this at all-- we dry-run execute the smart contract to read the data.
