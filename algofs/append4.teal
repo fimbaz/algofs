@@ -119,7 +119,7 @@ swap
 pop
 bnz all_done
 store 72
-append_next_chunk: // Bytes(LAST_OCCUPIED_KEY)
+append_next_chunk: // Bytes(LAST_OCCUPIED_KEY) Bytes(BYTES_LEFT)
 load 72
 btoi
 int 1
@@ -133,7 +133,7 @@ load 60  // Int(TOTAL_BYTES_TO_WRITE) - Int(BYTES_WRITTEN)
 int 120  // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_LEFT) Int(120)
 dig 1
 dig 1   // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_LEFT) Int(120) Int(BYTES_LEFT) Int(120)
-<
+>
 select // Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_TO_WRITE)
 dup
 cover 2 // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Int(BYTES_TO_WRITE)
@@ -145,14 +145,18 @@ uncover 2   // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPE
  // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) Int(BYTES_TO_WRITE) Int(BYTES_LEFT)
 - // START_INDEX = TOTAL_BYTES_TO_WRITE  - BYTES_LEFT
 dup  // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) START_INDEX
-dig 4 // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) START_INDEX Int(BYTES_TO_WRITE)
+cover 4 // Int(BYTES_TO_WRITE) Bytes(NEXT_OCCUPIED_KEY) Bytes(STRING_TO_APPEND) START_INDEX Int(BYTES_TO_WRITE)
+load 61
+swap
+-
+uncover 3
 extract3 // STRING_TO_APPEND START_INDEX BYTES_TO_WRITE
 app_global_put    // Int(BYTES_TO_WRITE)
 dup
 load 60
 -
+swap
 store 60
-store 61
 load 72
 btoi
 int 1
