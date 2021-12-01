@@ -35,7 +35,8 @@ return
 // END PREAMBLE
 err
 append: //# SCRATCH 1: current key, SCRATCH 2: bytes written
-int 0
+byte "LastUsedSlot"
+app_global_get
 itob
 store 1
 append_body:
@@ -57,6 +58,10 @@ skip:
 callsub increment_key
 bnz append_body
 int 1
+byte "LastUsedSlot"
+load 1
+btoi
+app_global_put
 return
 
 increment_key:
@@ -111,3 +116,6 @@ load 1
 swap
 app_global_put
 retsub
+err
+
+
