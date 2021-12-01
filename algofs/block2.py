@@ -35,8 +35,8 @@ monkey.patch_all()
 
 
 class DataBlock(object):
-    MAX_BLOCK_SIZE = 16000 #6140000#7000  # 1024 * 7  # might have to play with this.
-    BLOCK_ACCOUNT_DEPOSIT = 100000000
+    MAX_BLOCK_SIZE = 7000  # 1024 * 7  # might have to play with this.
+    BLOCK_ACCOUNT_DEPOSIT = 9800000
     MAX_APPS_PER_ACCOUNT = 10
     BLOCK_TYPE_DATA = 1
     BLOCK_TYPE_INDEX = 2
@@ -87,7 +87,7 @@ class DataBlock(object):
                 on_complete=transaction.OnComplete.NoOpOC,
                 global_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
                 local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
-                extra_pages=10,
+                extra_pages=3,
             )
 
         self.txn_result = process_txn(player, txn_generator, sync, sign, send)
@@ -130,9 +130,9 @@ class DataBlock(object):
 
         data_code = [ScratchVar().store(Int(block_type))] + [
             ScratchVar().store(
-                Bytes("base64", base64.b64encode(data[i : i + 4096]).decode("utf-8"))
+                Bytes("base64", base64.b64encode(data[i : i + 32]).decode("utf-8"))
             )
-            for i in range(0, len(data), 4096)
+            for i in range(0, len(data), 32)
         ]
         data_code_block = Seq((data_code + [Return(Int(1))]))
 
@@ -190,7 +190,7 @@ def process_txn(player, txn_generator, sync=False, sign=True, send=True):
 
 MAX_APPS_PER_ACCOUNT = 10
 MAX_TXNS_PER_GROUP = 11
-APP_DEPOSIT = 2000000000
+APP_DEPOSIT = 2000000
 MAX_BLOCK_SIZE = 7000
 
 
