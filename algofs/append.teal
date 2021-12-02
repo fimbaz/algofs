@@ -39,8 +39,9 @@ byte "LastUsedSlot"
 app_global_get
 itob
 store 1
+callsub bytes_left_in_key
 append_body:
-callsub create_key_if_empty //# updates SCRATCH 1, returns bytes free in scratch slot
+//callsub create_key_if_empty //# updates SCRATCH 1, returns bytes free in scratch slot
 dup
 bz inc_already
 load 2
@@ -56,6 +57,8 @@ pop
 int 1
 skip:
 callsub increment_key
+int 120 // used to be supplied by a subroutine call above; TODO: just use scratch space
+swap
 bnz append_body
 int 1
 byte "LastUsedSlot"
@@ -73,18 +76,14 @@ itob
 store 1
 retsub
 
-create_key_if_empty:
+bytes_left_in_key:
 int 0
 load 1
 app_global_get_ex
-bnz skip_create_key
-pop
-load 1
-byte ""
-app_global_put
+bnz is_not_empty
 int 120
 retsub
-skip_create_key:
+is_not_empty:
 len
 int 120
 swap
@@ -108,8 +107,13 @@ txna ApplicationArgs 1
 cover 2
 swap
 extract3
+int 0
 load 1
-app_global_get
+app_global_get_ex
+bnz has_value
+pop
+byte ""
+has_value:
 swap
 concat
 load 1
