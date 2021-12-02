@@ -19,12 +19,25 @@ txn ApplicationID
 int 0
 ==
 bnz retok
+
 txna ApplicationArgs 0
 byte "append"
 ==
+callsub is_owner
+&&
 bnz append
+b retfail
 return
 err
+
+is_owner:
+txn Sender
+global CreatorAddress
+==
+bz retfail
+int 1
+retsub
+
 
 retok: // success/fail functions
 int 1
