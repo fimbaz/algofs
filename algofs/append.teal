@@ -53,6 +53,11 @@ app_global_get
 itob
 store 1
 callsub bytes_left_in_key
+dup
+txna ApplicationArgs 1
+len
+>
+store 3 // # IS_SHORT_KEY
 append_body:
 //callsub create_key_if_empty //# updates SCRATCH 1, returns bytes free in scratch slot
 dup
@@ -77,8 +82,23 @@ int 1
 byte "LastUsedSlot"
 load 1
 btoi
+load 3
+bz longkey
+int 1
+-
+longkey:
 app_global_put
+
 return
+
+decrement_key:
+load 1
+btoi
+int 1
+-
+itob
+store 1
+retsub
 
 increment_key:
 load 1
