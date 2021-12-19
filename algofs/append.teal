@@ -50,7 +50,7 @@ err
 append: //# SCRATCH 1: current key, SCRATCH 2: bytes written
 byte "LastUsedSlot"
 app_global_get
-itob
+callsub small_int_as_byte
 store 1
 callsub bytes_left_in_key
 append_body:
@@ -70,7 +70,7 @@ pop
 int 1
 skip:
 callsub increment_key
-int 120 // used to be supplied by a subroutine call above; TODO: just use scratch space
+int 127 // used to be supplied by a subroutine call above; TODO: just use scratch space
 swap
 bnz append_body
 int 1
@@ -97,7 +97,7 @@ load 1
 btoi
 int 1
 +
-itob
+callsub small_int_as_byte
 store 1
 retsub
 
@@ -106,11 +106,11 @@ int 0
 load 1
 app_global_get_ex
 bnz is_not_empty
-int 120
+int 127
 retsub
 is_not_empty:
 len
-int 120
+int 127
 swap
 -
 retsub
@@ -146,5 +146,10 @@ swap
 app_global_put
 retsub
 err
-
+small_int_as_byte:
+byte " "
+int 0
+uncover 2
+setbyte
+retsub
 
