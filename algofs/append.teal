@@ -83,15 +83,6 @@ app_global_put
 
 return
 
-decrement_key:
-load 1
-btoi
-int 1
--
-itob
-store 1
-retsub
-
 increment_key:
 load 1
 btoi

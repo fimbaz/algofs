@@ -32,8 +32,8 @@ def dryrun_call(self, drr, **kwargs):
     kwargs["headers"] = headers
     return self.algod_request("POST", req, data=data, **kwargs)
 
-def dryrun(algod, approval_program, clear_program, args=[],app_id=None,hot_account=None):
-    args = [base64.b64encode(arg.encode("utf-8")).decode("utf-8") for arg in args]
+def dryrun(algod, approval_program, clear_program, arglist=[],app_id=None,hot_account=None):
+    arglist = [[base64.b64encode(arg.encode("utf-8")).decode("utf-8") for arg in args] for args in arglist]
     hot_account = hot_account
     data = dryrun_call(
         algod,
@@ -79,15 +79,16 @@ def dryrun(algod, approval_program, clear_program, args=[],app_id=None,hot_accou
             "txns": [
                 {
                     "txn": {
-                        "snd":hot_account,
+                        "snd": hot_account,
                         "apaa": args,
                         "apid": app_id if app_id else 1000000001,
                         "fee": 1000,
                         "fv": 1,
                         "type": "appl",
+                        "grp":"Zm9vCg=="
                     }
                 }
-            ],
+                for args in arglist],
         },
     )
     return data
@@ -113,5 +114,5 @@ if __name__ == "__main__":
     compiled_clear_program = player.algod.compile(
         compileTeal(Return(Int(1)), Mode.Application)
     )["result"]
-    how_dry_i_am = dryrun(player.algod,compiled_approval_program,compiled_clear_program,args=["append","chips ahoy"],hot_account=player.hot_account)
-    print({v['key']:base64.b64decode(v['value']['bytes']) for v in how_dry_i_am['txns'][0]['global-delta'] if 'bytes' in v['value']})
+    how_dry_i_am = dryrun(player.algod,compiled_approval_program,compiled_clear_program,arglist=[["append","chips ahoy"],["append","chips ahoy m8"]],hot_account=player.hot_account)
+    print({v['key']:base64.b64decode(v['value']['bytes']) for v in how_dry_i_am['txns'][2]['global-delta'] if 'bytes' in v['value']})
