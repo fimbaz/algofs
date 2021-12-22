@@ -173,26 +173,16 @@ pop
 byte "CopySource"
 txna Applications 1
 app_global_put
-load 1
-btoi
-int 127
-*
-load 1
-app_global_get
-int 127
-len
--
--
-byte "BytesWritten"
-swap
-app_global_put
-byte "CopySource"
-txna Applications 1
+byte "DataLength"
+int 0
+callsub data_length
 app_global_put
 continue_copy:
+byte "CopySource"
+app_global_get
 txna Applications 1
 ==
-bnz retfail
+bz retfail
 byte ""
 store 4
 copy_next:
@@ -205,6 +195,13 @@ int 1
 swap
 app_global_get_ex
 bz done // blank key in dest; all done.
+dup
+len
+byte "BytesCopied"
+app_global_get
++
+byte "BytesCopied"
+app_global_put
  //Stack: next value to copy
 load 4
 swap
