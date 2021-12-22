@@ -153,11 +153,18 @@ uncover 2
 setbyte
 retsub
 copyfrom:
+byte "LastUsedSlot"
+app_global_get
+callsub small_int_as_byte
+store 1
 int 0
 byte "CopySource"
 app_global_get_ex
 bnz continue_copy
 pop
+byte "CopySource"
+txna Applications 1
+app_global_put
 load 1
 btoi
 int 127
@@ -178,16 +185,43 @@ continue_copy:
 txna Applications 1
 ==
 bnz retfail
+byte ""
+store 4
+copy_next:
 byte "BytesCopied"
 app_global_get
 int 127
-*
+/
 callsub small_int_as_byte
 int 1
 swap
 app_global_get_ex
-bz done
+bz done // blank key in dest; all done.
+ //Stack: next value to copy
+load 4
+swap
+concat
+store 4
+load 5
+int 1
++
+int 5 // iterations
+>
+bnz done
+dup
+len
 callsub append
+byte "BytesCopied"
+dup
+app_global_get
+swap
++
+app_global_put
+load 1
+btoi
+int 61
+>=
+bnz done
 done:
 retsub
 
