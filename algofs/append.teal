@@ -153,6 +153,14 @@ uncover 2
 setbyte
 retsub
 copyfrom:
+int 0
+app_params_get AppApprovalProgram
+bz retfail
+int 1
+app_params_get AppApprovalProgram
+bz retfail
+==
+bz retfail
 byte "LastUsedSlot"
 app_global_get
 callsub small_int_as_byte
@@ -205,12 +213,15 @@ store 4
 load 5
 int 1
 +
+store 5
+load 5
 int 5 // iterations
 >
-bnz done
-dup
-len
+bz copy_next
+load 4
 callsub append
+load 4
+len
 byte "BytesCopied"
 dup
 app_global_get
@@ -224,6 +235,18 @@ int 61
 bnz done
 done:
 retsub
-
+data_length: // #param: app array id
+byte "LastUsedSlot"
+app_global_get_ex
+pop
+int 127
+*
+load 1
+app_global_get
+len
+-
+int 127
++ // (LastUsedSlot*127 - 127 + len(Globals[LastUsedSlot])) = Bytes in payload
+retsub
 
 
