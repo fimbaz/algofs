@@ -26,6 +26,7 @@ byte "append"
 callsub is_owner
 &&
 bz dont_append
+txna ApplicationArgs 1
 callsub append
 dont_append:
 txna ApplicationArgs 0
@@ -55,6 +56,7 @@ return
 // END PREAMBLE
 err
 append: //# SCRATCH 1: current key, SCRATCH 2: bytes written
+store 3 // String to append
 byte "LastUsedSlot"
 app_global_get
 callsub small_int_as_byte
@@ -67,7 +69,7 @@ bz inc_already
 load 2
 swap
 callsub append_chunk_to_key // # updates SCRATCH 2
-txna ApplicationArgs 1
+load 3
 len
 load 2
 -
@@ -114,7 +116,7 @@ swap
 retsub
 
 append_chunk_to_key: // # CHUNK_START BYTES_FREE_IN_CURRENT_KEY 
-txna ApplicationArgs 1
+load 3
 len
 load 2
 -
@@ -126,7 +128,7 @@ load 2
 +
 store 2
 cover 1
-txna ApplicationArgs 1
+load 3
 cover 2
 swap
 extract3
@@ -156,9 +158,38 @@ byte "CopySource"
 app_global_get_ex
 bnz continue_copy
 pop
+load 1
+btoi
+int 127
+*
+load 1
+app_global_get
+int 127
+len
+-
+-
+byte "BytesWritten"
+swap
+app_global_put
+byte "CopySource"
+txna Applications 1
+app_global_put
 continue_copy:
 txna Applications 1
 ==
 bnz retfail
 byte "BytesCopied"
+app_global_get
+int 127
+*
+callsub small_int_as_byte
+int 1
+swap
 app_global_get_ex
+bz done
+callsub append
+done:
+retsub
+
+
+
