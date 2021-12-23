@@ -189,10 +189,16 @@ int 1
 callsub data_length
 app_global_put
 continue_copy:
+byte "CopyDataLength"
+app_global_get
+byte "BytesCopied"
+app_global_get
+!=
 byte "CopySource"
 app_global_get
 txna Applications 1
 ==
+&&
 bz retfail
 byte ""
 store 4
