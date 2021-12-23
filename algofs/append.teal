@@ -184,8 +184,8 @@ pop
 byte "CopySource"
 txna Applications 1
 app_global_put
-byte "DataLength"
-int 0
+byte "CopyDataLength"
+int 1
 callsub data_length
 app_global_put
 continue_copy:
@@ -210,8 +210,8 @@ dup
 len
 dup
 int 127
-!=
-bz dont_terminate_yet
+==
+bnz dont_terminate_yet
 int 1
 store 7
 dont_terminate_yet:
@@ -242,14 +242,6 @@ pop
 max_iters:
 load 4
 callsub append
-byte "BytesCopied"
-app_global_get
-load 4
-len
-+
-byte "BytesCopied"
-swap
-app_global_put
 bz done
 done:
 int 1
