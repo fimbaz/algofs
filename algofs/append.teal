@@ -231,7 +231,7 @@ int 1
 +
 store 5
 load 5
-int 5 // iterations
+int 2 // iterations
 >
 load 7
 ||
@@ -259,11 +259,15 @@ dup
 byte "LastUsedSlot"
 app_global_get_ex
 pop
+dup
 int 1
 +
 int 127
 *
+swap
 callsub small_int_as_byte
+uncover 2
+swap
 app_global_get_ex
 bz zerolen
 len
@@ -273,6 +277,8 @@ swap
 - // (LastUsedSlot*127 - (127 - len(Globals[LastUsedSlot]))) = Bytes in payload
 retsub
 zerolen:
+int 127
+-
 retsub
 
 
