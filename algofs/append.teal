@@ -18,8 +18,17 @@ bnz retok
 txn ApplicationID
 int 0
 ==
-bnz retok
-
+bz no_setup
+byte "LastUsedSlot"
+int 0
+app_global_put
+int 0
+callsub small_int_as_byte
+byte ""
+app_global_put
+int 1
+return
+no_setup:
 txna ApplicationArgs 0
 byte "append"
 ==
@@ -34,7 +43,7 @@ byte "copy"
 ==
 callsub is_owner
 &&
-bnz dont_copyfrom
+bz dont_copyfrom
 callsub copyfrom
 dont_copyfrom:
 return
@@ -196,9 +205,16 @@ callsub small_int_as_byte
 int 1
 swap
 app_global_get_ex
-bz done // blank key in dest; all done.
+bz copyload_done // blank key in dest; all done.
 dup
 len
+dup
+int 127
+!=
+bz dont_terminate_yet
+int 1
+store 7
+dont_terminate_yet:
 byte "BytesCopied"
 app_global_get
 +
@@ -217,36 +233,47 @@ store 5
 load 5
 int 5 // iterations
 >
+load 7
+||
 bz copy_next
+b max_iters
+copyload_done:
+pop
+max_iters:
 load 4
 callsub append
+byte "BytesCopied"
+app_global_get
 load 4
 len
-byte "BytesCopied"
-dup
-app_global_get
-swap
 +
+byte "BytesCopied"
+swap
 app_global_put
-load 1
-btoi
-int 61
->=
-bnz done
+bz done
 done:
+int 1
 retsub
 data_length: // #param: app array id
+dup
 byte "LastUsedSlot"
 app_global_get_ex
 pop
+int 1
++
 int 127
 *
-load 1
-app_global_get
+callsub small_int_as_byte
+app_global_get_ex
+bz zerolen
 len
--
 int 127
-+ // (LastUsedSlot*127 - 127 + len(Globals[LastUsedSlot])) = Bytes in payload
+swap
+-
+- // (LastUsedSlot*127 - (127 - len(Globals[LastUsedSlot]))) = Bytes in payload
 retsub
+zerolen:
+retsub
+
 
 
