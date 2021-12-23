@@ -193,12 +193,12 @@ byte "CopyDataLength"
 app_global_get
 byte "BytesCopied"
 app_global_get
-!=
+==
+bnz finish_copy
 byte "CopySource"
 app_global_get
 txna Applications 1
 ==
-&&
 bz retfail
 byte ""
 store 4
@@ -237,7 +237,7 @@ int 1
 +
 store 5
 load 5
-int 2 // iterations
+int 4 // iterations
 >
 load 7
 ||
@@ -278,6 +278,14 @@ zerolen:
 int 127
 -
 retsub
-
+finish_copy:
+byte "BytesCopied"
+app_global_del
+byte "CopySource"
+app_global_del
+byte "CopyDataLength"
+app_global_del
+int 1
+retsub
 
 
