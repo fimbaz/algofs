@@ -44,6 +44,8 @@ byte "copy"
 callsub is_owner
 &&
 bz dont_copyfrom
+txna ApplicationArgs 1
+store 13 // copy this many 'lines'
 callsub copyfrom
 dont_copyfrom:
 return
@@ -188,6 +190,7 @@ byte "CopyDataLength"
 int 1
 callsub data_length
 app_global_put
+callsub append_header
 continue_copy:
 byte "CopyDataLength"
 app_global_get
@@ -237,19 +240,23 @@ int 1
 +
 store 5
 load 5
-int 4 // iterations
+load 13 // iterations
 >
 load 7
 ||
 bz copy_next
 b max_iters
 copyload_done:
+int 1
+store 12
 pop
 max_iters:
 load 4
 callsub append
 bz done
 done:
+load 12
+bnz finish_copy
 int 1
 retsub
 data_length: // #param: app array id
@@ -286,6 +293,34 @@ app_global_del
 byte "CopyDataLength"
 app_global_del
 int 1
+return
+append_header:
+int 1
+app_params_get AppCreator
+pop
+byte "CopyDataLength"
+app_global_get
+itob
+concat
+byte "CopySource"
+app_global_get
+itob
+concat
+callsub append
 retsub
-
-
+append_to_empty:
+txna ApplicationArgs 1
+load 1
+int 127
+extract3
+load 1
+callsub small_int_as_byte
+app_global_put
+int 1
+load 1
++
+dup
+store 1
+txna ApplicationArgs 1
+>
+bz append_to_empty

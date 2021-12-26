@@ -1,4 +1,16 @@
 #!/bin/bash
-sudo -u algorand -E  goal app call --foreign-app $2 --app-id $1 --app-arg "str:$3" --app-arg "str:hello mr greenspan I really appreciate you even if other people do not necessarily and what's more I think that the federal reserve is an institution that benefits me personally largely by adding to the stability of global price represntation yadda yadda yaddahello mr greenspan I really appreciate you even if other people do not necessarily and what's more I think that the federal reserve is an institution that benefits me personally largely by adding to the stability of global price represntation yadda yadda yadda hello mr greenspanadday adday adday noitatnserper ecirp labolg fo ytilibats eht ot gnidda yb ylegral yllanosrep em stifeneb taht noitutitsni na si evreser laredef eht taht kniht I erom s'tahw dna ylirassecen ton od elpoep rehto fi neve uoy etaicerppa yllaer I napsneerg rm ollehadday adday adday noitatnserper ecirp labolg fo ytilibats eht ot gnida yaddahello mr greenspan I really appreciate you even if other people do not necessarily and whnoitatnserper ecirp labolg fo ytilibats eht ot gnida yaddahello mr greenspan I really appreciate you even if other people do not necessarily and wh" --from $HOT_WALLET_KEY #   --dryrun-dump  --out=/tmp/foo.dump
-echo dumpd
-sudo -E -u algorand goal clerk dryrun-remote   -D /tmp/foo.dump  --verbose
+if [[ $1 = dryrun ]]; then
+    DRYRUN=yep
+    shift;
+fi
+COMMAND=$1
+APP_ID_1=$2
+if [[ $COMMAND = append ]]; then
+    sudo -u algorand -E  goal app call \
+	 --app-id $APP_ID_1 \
+	 --app-arg "str:$COMMAND" \
+	 --app-arg "str:$3" \
+	 --from $HOT_WALLET_KEY \
+	 $(if [[ $DRYRUN ]]; then echo --dryrun-dump  --out=/tmp/foo.dump; fi;) \
+	&& if [[ $DRYRUN ]]; then sudo -E -u algorand goal clerk dryrun-remote   -D /tmp/foo.dump  --verbose; fi;
+fi;
