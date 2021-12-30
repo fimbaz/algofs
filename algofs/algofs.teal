@@ -9,7 +9,8 @@ txn OnCompletion
 int DeleteApplication
 ==
 bnz retok
-
+callsub is_owner
+bz retfail
 txn OnCompletion
 int UpdateApplication
 ==
@@ -32,8 +33,6 @@ no_setup:
 txna ApplicationArgs 0
 byte "append"
 ==
-callsub is_owner
-&&
 bz dont_append
 txna ApplicationArgs 1
 callsub append
@@ -45,12 +44,24 @@ callsub is_owner
 &&
 bz dont_copyfrom
 txna ApplicationArgs 1
+btoi
 store 13 // copy this many 'lines'
 callsub copyfrom
 dont_copyfrom:
+txna ApplicationArgs 0
+byte "settail"
+==
+bz dont_settail
+callsub settail
+dont_settail:
+byte "sethead"
+txna ApplicationArgs 0
+==
+bz dont_sethead
+callsub sethead
+dont_sethead:
 return
 err
-
 is_owner:
 txn Sender
 global CreatorAddress
@@ -70,6 +81,9 @@ return
 err
 append: //# SCRATCH 1: current key, SCRATCH 2: bytes written
 store 3 // String to append
+byte "Tail"
+app_global_get
+bnz retfail // object won't accept new messages once a tail is assigned.
 byte "LastUsedSlot"
 app_global_get
 callsub small_int_as_byte
@@ -102,7 +116,8 @@ btoi
 int 1
 -
 app_global_put
-
+int 0
+store 2 // so we can call it again (what's re-entrancy, lol?)
 retsub
 
 increment_key:
@@ -196,6 +211,9 @@ byte "CopyDataLength"
 app_global_get
 byte "BytesCopied"
 app_global_get
+byte "BytesInHead"
+app_global_get
++
 ==
 bnz finish_copy
 byte "CopySource"
@@ -208,6 +226,9 @@ store 4
 copy_next:
 byte "BytesCopied"
 app_global_get
+byte "BytesInHead"
+app_global_get
++
 int 127
 /
 callsub small_int_as_byte
@@ -324,3 +345,67 @@ store 1
 txna ApplicationArgs 1
 >
 bz append_to_empty
+retsub
+settail:
+int 0
+app_params_get AppApprovalProgram
+bz retfail
+txna Applications 1
+app_params_get AppApprovalProgram
+bz retfail
+dup
+cover 2
+==
+bz retfail
+txna Applications 0
+app_params_get AppApprovalProgram
+bz retfail
+== // use dup
+bz retfail
+int 0
+byte "Tail"
+app_global_get_ex
+bnz retfail
+pop // tail must be unset
+txna Applications 1
+callsub data_length
+bnz retfail // tail must be empty
+byte "Tail"
+txna Applications 1
+app_global_put
+int 1
+retsub
+sethead:
+int 0
+byte "BytesInHead"
+app_global_get_ex
+bnz retfail
+pop
+int 1
+byte "CopyDataLength"
+app_global_get_ex
+bz retfail
+int 1
+byte "BytesCopied"
+app_global_get_ex
+pop
+byte "BytesInHead"
+swap
+app_global_put
+byte "Head"
+txna Applications 1
+app_global_put
+int 1
+byte "CopySource"
+app_global_get_ex
+pop
+byte "CopySource"
+swap
+app_global_put
+//CopyDataLength(FApp 2), BytesCopied(FApp 2)
+byte "BytesCopied"
+int 0
+app_global_put
+int 1
+retsub
+
