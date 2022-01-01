@@ -33,7 +33,6 @@ from itertools import count
 
 monkey.patch_all()
 
-
 class DataBlock(object):
     MAX_BLOCK_SIZE = 7000  # 1024 * 7  # might have to play with this.
     BLOCK_ACCOUNT_DEPOSIT = 9800000
@@ -42,7 +41,7 @@ class DataBlock(object):
     BLOCK_TYPE_INDEX = 2
     BLOCK_TYPE_FILE = 3
     BLOCK_TYPE_DIRECTORY = 4
-
+    BLOCK_TYPE_MESSAGE = 5
     def __init__(
         self,
         algod=None,
@@ -77,6 +76,8 @@ class DataBlock(object):
         self.app_id = app_id
         self.account = account
 
+    def load_message(self, app_id):
+        
     def burn(self, player, account=None, sync=False, sign=True, send=True):
         def txn_generator(player):
             return transaction.ApplicationCreateTxn(

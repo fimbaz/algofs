@@ -313,6 +313,8 @@ byte "CopySource"
 app_global_del
 byte "CopyDataLength"
 app_global_del
+byte "BytesInHead"
+app_global_del
 int 1
 return
 append_header:
