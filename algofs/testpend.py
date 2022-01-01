@@ -25,75 +25,34 @@ import time
 import json
 import operator
 from itertools import count
-def dryrun_call(self, drr, **kwargs):
-    data = json.dumps(drr).encode()
-    req = "/teal/dryrun"
-    headers = {"Content-Type": "application/msgpack"}
-    kwargs["headers"] = headers
-    return self.algod_request("POST", req, data=data, **kwargs)
+class AppendAppTxn:
+    def create(player):
+        with open("append.teal") as f1,open("clear.teal") as f2:
+            approval_program = player.algod.compile(f1.read())
+            clear_program = player.algod.compile(f2.read())
+        txn = transaction.ApplicationCreateTxn(
+            player.hot_account,
+            player.params,
+            approval_program=base64.b64decode(approval_program),
+            clear_program=base64.b64decode(clear_program),
+            on_complete=transaction.OnComplete.NoOpOC,
+            global_schema=transaction.StateSchema(num_uints=6, num_byte_slices=58),
+            local_schema=transaction.StateSchema(num_uints=0, num_byte_slices=0),
+        )
+        return txn
+    def append(player,data):
+        txn = transaction.ApplicationCallTxn(player.hot_account,
+                                             player.params,
+                                             on_complete=transaction.OnComplete.NoOpOC,
+                                             app_args=["append",data])
+        return txn
 
-def dryrun(algod, approval_program, clear_program, arglist=[],app_id=None,hot_account=None):
-    arglist = [[base64.b64encode(arg.encode("utf-8")).decode("utf-8") for arg in args] for args in arglist]
-    hot_account = hot_account
-    data = dryrun_call(
-        algod,
-        drr={
-            "accounts": [
-                {
-                    "address": hot_account if hot_account else "VCZCQGZ3BOKZQPE6J3QWRJPPEV4RFH2QK4SN7WP377RX447B3PKU4GM6XQ",
-                    "amount": 1000000000,
-                    "amount-without-pending-rewards": 1000000000,
-                    "created-apps": [
-                        {
-                            "id": app_id if app_id else 1000000001,
-                            "params": {
-                                "approval-program": approval_program,
-                                "clear-state-program": clear_program,
-                                "creator": hot_account,
-                                "global-state-schema": {
-                                    "num-byte-slice": 63,
-                                    "num-uint": 1,
-                                },
-                            },
-                        }
-                    ],
-                    "round": 1,
-                    "status": "Online",
-                }
-            ],
-            "apps": [
-                {
-                    "id": app_id if app_id else 1000000001 ,
-                    "params": {
-                        "approval-program": approval_program,
-                        "clear-state-program": clear_program,
-                        "creator": hot_account,
-                        "global-state-schema": {"num-byte-slice": 63, "num-uint": 1},
-                    },
-                }
-            ],
-            "latest-timestamp": 1,
-            "round": 1,
-            "sources": None,
-            
-            "txns": [
-                {
-                    "txn": {
-                        "snd": hot_account,
-                        "apaa": args,
-                        "apid": app_id if app_id else 1000000001,
-                        "fee": 1000,
-                        "fv": 1,
-                        "type": "appl",
-                        "grp":"Zm9vCg=="
-                    }
-                }
-                for args in arglist],
-        },
-    )
-    return data
-
-
+def read_app(player, app_id):
+    info = player.algod.application_info(app_id)
+    global_state = info["params"]["global-state"]
+    for item in global_state:
+        item["key"]
+        item["value"]
 if __name__ == "__main__":
     import os
     player = Player(
