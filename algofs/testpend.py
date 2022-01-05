@@ -63,6 +63,42 @@ def process_txn(player, txn, sync=False, sign=True, send=True):
     return txn_result
 
 
+class AppendApp:
+    def __init__(
+        self,
+        player,
+        app_id=None,
+        data="",
+    ):
+        self.player = player
+        self.txns = []
+        self.data = data
+        if not app_id:
+            self.app_id = process_txn(
+                player, AppendAppTxn.create(player, data), sync=True
+            )["application-index"]
+        else:
+            self.app_id = app_id
+
+    def send(self,sync=True):
+        result = process_txn(self.player, self.txns, sync=True)
+        self.txns = []
+        return result
+
+    def append(self, data):
+        if len(data) > 1000:
+            for x in range(999, len(data), 1000):
+                self.txns.append(
+                    AppendAppTxn.append(player, self.app_id, data[x : x + 1000])
+                )
+                
+    def copy(self, app2):
+        self.txns += [
+            AppendAppTxn.copy(self.player, self.app_id, app2, 1 if i == 0 else 3)
+            for i in range(0, ((len(self.data) - 128) // (128 * 3)) + 2)
+        ]
+
+
 class AppendAppTxn:
     def creator():
         return AppendAppTxn.create
@@ -96,6 +132,17 @@ class AppendAppTxn:
         )
         return txn
 
+    def copy(player, app_id1, app_id2, cycles):
+        txn = transaction.ApplicationCallTxn(
+            player.hot_account,
+            player.params,
+            app_id2,
+            on_complete=transaction.OnComplete.NoOpOC,
+            foreign_apps=[app_id1],
+            app_args=["copy", cycles],
+        )
+        return txn
+
 
 def read_app(player, app_id):
     info = player.algod.application_info(app_id)
@@ -115,6 +162,16 @@ def read_app(player, app_id):
     )  # ,key=lambda x: ord(x[0]))))
 
 
+def test(player):
+    data = " ".join([str(x) for x in range(1, 1500)])
+    app = AppendApp(player)
+    app2 = AppendApp(player)    
+    app.append(data)
+    app.copy(app2.app_id)
+    print(app.txns)
+    print(app.send(sync=True))
+
+
 if __name__ == "__main__":
     import os
 
@@ -131,20 +188,29 @@ if __name__ == "__main__":
     )
     args = docopt(
         """Usage:
+    append.py test
     append.py read <app-id>
     append.py create <data>
         """
     )
+    if args["test"]:
+        test(player)
     if args["read"]:
         print(read_app(player, int(args["<app-id>"])))
     elif args["create"]:
         data = args["<data>"]
-        app_id = process_txn(player, AppendAppTxn.create(player, data[0:999]),sync=True)['application-index']
+        app_id = process_txn(
+            player, AppendAppTxn.create(player, data[0:999]), sync=True
+        )["application-index"]
         if len(data) > 7000:
             raise "Input too large"
         txns = []
         if len(data) > 1000:
             for x in range(999, len(data), 1000):
                 txns.append(AppendAppTxn.append(player, app_id, data[x : x + 1000]))
-        print(process_txn(player, txns,sync=True))
+        print(process_txn(player, txns, sync=True))
         print(app_id)
+        new_app_id = process_txn(
+            player, AppendAppTxn.create(player, data[0:999]), sync=True
+        )["application-index"]
+        print(process_txn(player, AppendAppTxn.copy(app_id, new_app_id, sync=True)))
