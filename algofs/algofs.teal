@@ -1,5 +1,4 @@
 #pragma version 5
-//PREAMBLE
 txn RekeyTo
 global ZeroAddress
 !=
@@ -7,13 +6,13 @@ bnz retfail
 
 txn OnCompletion
 int DeleteApplication
-==
+== // anyone can delete, for now.
 bnz retok
 callsub is_owner
-bz retfail
 txn OnCompletion
 int UpdateApplication
-==
+== // the owner can update the app for now
+&&
 bnz retok
 
 txn ApplicationID
@@ -28,7 +27,7 @@ callsub small_int_as_byte
 byte ""
 app_global_put
 int 1
-return
+return // TODO: set object type, parent topic, etc.
 no_setup:
 txna ApplicationArgs 0
 byte "append"
@@ -205,7 +204,6 @@ byte "CopyDataLength"
 int 1
 callsub data_length
 app_global_put
-callsub append_header
 continue_copy:
 byte "CopyDataLength"
 app_global_get

@@ -25,7 +25,6 @@ import sys
 import time
 import json
 import operator
-from itertools import count
 
 
 def process_txn(player, txn, sync=False, sign=True, send=True):
@@ -64,6 +63,8 @@ def process_txn(player, txn, sync=False, sign=True, send=True):
 
 
 class AppendApp:
+    def read(self):
+        return read_app(self.player,self.app_id)
     def __init__(
         self,
         player,
@@ -79,32 +80,36 @@ class AppendApp:
             )["application-index"]
         else:
             self.app_id = app_id
-
-    def send(self,sync=True):
-        result = process_txn(self.player, self.txns, sync=True)
+            self.data = read_app(player,self.app_id)
+            
+    def send(self, sync=True):
+        groups = (self.txns[i : i + 16] for i in range(0, len(self.txns), 16))
+        for group in groups:
+            result = process_txn(self.player, group, sync=True)
         self.txns = []
         return result
 
     def append(self, data):
         if len(data) > 1000:
-            for x in range(999, len(data), 1000):
+            for x in range(0, len(data), 1000):
                 self.txns.append(
                     AppendAppTxn.append(player, self.app_id, data[x : x + 1000])
                 )
-                
+        self.data = read_app(player, self.app_id)
     def copy(self, app2):
         self.txns += [
-            AppendAppTxn.copy(self.player, self.app_id, app2, 1 if i == 0 else 3)
-            for i in range(0, ((len(self.data) - 128) // (128 * 3)) + 2)
+            AppendAppTxn.copy(self.player, self.app_id, app2, 5)
+            for i in range(0, (len(self.data) // (64 * 5)) + 2)
         ]
-
+        import pdb
+        pdb.set_trace()
 
 class AppendAppTxn:
     def creator():
         return AppendAppTxn.create
 
     def create(player, data):
-        with open("append.teal") as f1:
+        with open("algofs.teal") as f1:
             compiled_approval_program = player.algod.compile(f1.read())["result"]
         compiled_clear_program = player.algod.compile(
             pyteal.compileTeal(pyteal.Return(pyteal.Int(1)), pyteal.Mode.Application)
@@ -139,7 +144,8 @@ class AppendAppTxn:
             app_id2,
             on_complete=transaction.OnComplete.NoOpOC,
             foreign_apps=[app_id1],
-            app_args=["copy", cycles],
+            lease=secrets.token_bytes(32),
+            app_args=["copy", str(cycles)],
         )
         return txn
 
@@ -165,13 +171,12 @@ def read_app(player, app_id):
 def test(player):
     data = " ".join([str(x) for x in range(1, 1500)])
     app = AppendApp(player)
-    app2 = AppendApp(player)    
+    app2 = AppendApp(player)
     app.append(data)
     app.copy(app2.app_id)
-    print(app.txns)
+    print(len(app.txns))
     print(app.send(sync=True))
-
-
+    assert(app2.read()==app.read())
 if __name__ == "__main__":
     import os
 
@@ -191,26 +196,34 @@ if __name__ == "__main__":
     append.py test
     append.py read <app-id>
     append.py create <data>
+    append.py append <data>
+    append.py copy <source-app> <dest-app> <cycles>
         """
     )
     if args["test"]:
         test(player)
-    if args["read"]:
+    elif args["read"]:
         print(read_app(player, int(args["<app-id>"])))
     elif args["create"]:
         data = args["<data>"]
         app_id = process_txn(
             player, AppendAppTxn.create(player, data[0:999]), sync=True
         )["application-index"]
+        print(app_id)
+    elif args["append"]:
+        data = args["<data>"]
         if len(data) > 7000:
             raise "Input too large"
         txns = []
-        if len(data) > 1000:
-            for x in range(999, len(data), 1000):
-                txns.append(AppendAppTxn.append(player, app_id, data[x : x + 1000]))
+        for x in range(0, len(data), 1000):
+            txns.append(AppendAppTxn.append(player, app_id, data[x : x + 1000]))
         print(process_txn(player, txns, sync=True))
         print(app_id)
-        new_app_id = process_txn(
-            player, AppendAppTxn.create(player, data[0:999]), sync=True
-        )["application-index"]
-        print(process_txn(player, AppendAppTxn.copy(app_id, new_app_id, sync=True)))
+    elif args["copy"]:
+        source = int(args["<source-app>"])
+        dest = int(args["<dest-app>"])
+        cycles = int(args["<cycles>"])
+        print(process_txn(player,AppendAppTxn.copy(player,source,dest,cycles),sync=True))
+#        app1 = AppendApp(source)
+#        app2 = AppendApp(dest)
+#        app1.copy(app2.app_id)
