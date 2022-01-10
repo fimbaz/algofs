@@ -85,6 +85,7 @@ class AppendApp:
     def send(self, sync=True):
         groups = (self.txns[i : i + 16] for i in range(0, len(self.txns), 16))
         for group in groups:
+            print(f"send {len(group)} txns")
             result = process_txn(self.player, group, sync=True)
         self.txns = []
         return result
@@ -95,14 +96,12 @@ class AppendApp:
                 self.txns.append(
                     AppendAppTxn.append(player, self.app_id, data[x : x + 1000])
                 )
-        self.data = read_app(player, self.app_id)
+        self.data = data
     def copy(self, app2):
         self.txns += [
-            AppendAppTxn.copy(self.player, self.app_id, app2, 5)
-            for i in range(0, (len(self.data) // (64 * 5)) + 2)
+            AppendAppTxn.copy(self.player, self.app_id, app2, 3)
+            for i in range(0, (len(self.data) // (128 * 4)) + 2)
         ]
-        import pdb
-        pdb.set_trace()
 
 class AppendAppTxn:
     def creator():
@@ -145,7 +144,7 @@ class AppendAppTxn:
             on_complete=transaction.OnComplete.NoOpOC,
             foreign_apps=[app_id1],
             lease=secrets.token_bytes(32),
-            app_args=["copy", str(cycles)],
+            app_args=["copy", int(cycles)],
         )
         return txn
 
@@ -169,7 +168,7 @@ def read_app(player, app_id):
 
 
 def test(player):
-    data = " ".join([str(x) for x in range(1, 1500)])
+    data = " ".join([str(x) for x in range(1, 1000)])
     app = AppendApp(player)
     app2 = AppendApp(player)
     app.append(data)
